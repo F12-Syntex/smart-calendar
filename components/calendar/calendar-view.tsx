@@ -53,7 +53,7 @@ export const CalendarView = () => {
         onToday={onToday}
       />
       {/* Desktop: grid view */}
-      <div className="hidden sm:flex flex-1 overflow-hidden p-2 sm:p-4">
+      <div className="hidden sm:flex flex-1 overflow-hidden p-3 md:p-5">
         <CalendarGrid
           currentMonth={currentMonth}
           currentYear={currentYear}

@@ -6,17 +6,16 @@ import { useIsSSR } from "@react-aria/ssr";
 import clsx from "clsx";
 
 import { siteConfig } from "@/config/site";
-import { PaletteIcon } from "@/components/icons";
 
-const THEME_COLORS: Record<string, string> = {
-  light: "#0072F5",
-  dark: "#7C7C7C",
-  ocean: "#0072F5",
-  forest: "#17C964",
-  sunset: "#FF9700",
-  "purple-dark": "#7828C8",
-  rose: "#FF4D70",
-  midnight: "#06B6D4",
+const THEME_COLORS: Record<string, { bg: string; accent: string }> = {
+  light: { bg: "#FAFAFA", accent: "#6366F1" },
+  dark: { bg: "#09090B", accent: "#818CF8" },
+  ocean: { bg: "#020B18", accent: "#60A5FA" },
+  forest: { bg: "#021A08", accent: "#34D399" },
+  sunset: { bg: "#FFFBF5", accent: "#F97316" },
+  "purple-dark": { bg: "#0A0015", accent: "#C084FC" },
+  rose: { bg: "#FFFBFC", accent: "#F43F5E" },
+  midnight: { bg: "#010814", accent: "#22D3EE" },
 };
 
 export const ThemeSwitcher: FC = () => {
@@ -41,65 +40,62 @@ export const ThemeSwitcher: FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  const lightThemes = siteConfig.themes.filter((t) => t.type === "light");
-  const darkThemes = siteConfig.themes.filter((t) => t.type === "dark");
-
   return (
     <div ref={ref} className="relative">
       <button
         aria-label="Switch theme"
-        className="p-1.5 rounded-lg hover:bg-default-100 transition-colors"
+        className={clsx(
+          "w-8 h-8 rounded-xl flex items-center justify-center transition-all",
+          "hover:bg-default-100 active:scale-95",
+        )}
         onClick={() => setIsOpen(!isOpen)}
       >
-        <PaletteIcon size={20} />
+        <div
+          className="w-4 h-4 rounded-full ring-2 ring-default-300"
+          style={{
+            background: `linear-gradient(135deg, ${THEME_COLORS[currentTheme]?.bg || "#09090B"} 50%, ${THEME_COLORS[currentTheme]?.accent || "#818CF8"} 50%)`,
+          }}
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-content1 border border-default-200 shadow-lg z-50 py-1 overflow-hidden">
-          <div className="px-3 py-1.5 text-xs font-semibold text-default-500">
-            Light
+        <div className="absolute right-0 top-full mt-2 rounded-2xl bg-content1 border border-default-200/60 shadow-2xl z-50 p-3 w-[220px] backdrop-blur-xl">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-default-400 mb-2 px-1">
+            Theme
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {siteConfig.themes.map((t) => {
+              const colors = THEME_COLORS[t.key];
+              const isActive = currentTheme === t.key;
+
+              return (
+                <button
+                  key={t.key}
+                  className={clsx(
+                    "flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-medium transition-all",
+                    isActive
+                      ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                      : "hover:bg-default-100 text-default-600",
+                  )}
+                  onClick={() => {
+                    setTheme(t.key);
+                    setIsOpen(false);
+                  }}
+                >
+                  <div
+                    className={clsx(
+                      "w-4 h-4 rounded-full shrink-0 ring-1",
+                      isActive ? "ring-primary" : "ring-default-300",
+                    )}
+                    style={{
+                      background: `linear-gradient(135deg, ${colors.bg} 50%, ${colors.accent} 50%)`,
+                    }}
+                  />
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
-          {lightThemes.map((t) => (
-            <button
-              key={t.key}
-              className={clsx(
-                "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-default-100 transition-colors",
-                currentTheme === t.key && "bg-default-100 font-semibold",
-              )}
-              onClick={() => {
-                setTheme(t.key);
-                setIsOpen(false);
-              }}
-            >
-              <div
-                className="w-4 h-4 rounded-full border border-default-300 shrink-0"
-                style={{ backgroundColor: THEME_COLORS[t.key] }}
-              />
-              {t.label}
-            </button>
-          ))}
-          <div className="px-3 py-1.5 text-xs font-semibold text-default-500 border-t border-default-200 mt-1">
-            Dark
-          </div>
-          {darkThemes.map((t) => (
-            <button
-              key={t.key}
-              className={clsx(
-                "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-default-100 transition-colors",
-                currentTheme === t.key && "bg-default-100 font-semibold",
-              )}
-              onClick={() => {
-                setTheme(t.key);
-                setIsOpen(false);
-              }}
-            >
-              <div
-                className="w-4 h-4 rounded-full border border-default-300 shrink-0"
-                style={{ backgroundColor: THEME_COLORS[t.key] }}
-              />
-              {t.label}
-            </button>
-          ))}
         </div>
       )}
     </div>

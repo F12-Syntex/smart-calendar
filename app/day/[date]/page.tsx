@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 
 import { ChevronLeftIcon } from "@/components/icons";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 const DAY_NAMES = [
   "Sunday",
@@ -47,37 +48,40 @@ export default function DayPage() {
     month === today.getMonth() &&
     year === today.getFullYear();
 
+  const currentHour = isToday ? today.getHours() : -1;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-default-200 bg-content1 shrink-0">
+      <header className="flex items-center gap-3 px-4 sm:px-6 h-16 border-b border-default-200/50 bg-background/80 backdrop-blur-xl shrink-0 relative z-20">
         <Button
           isIconOnly
+          className="rounded-xl"
           size="sm"
           variant="light"
           onPress={() => router.push("/")}
         >
-          <ChevronLeftIcon size={20} />
+          <ChevronLeftIcon size={18} />
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg sm:text-xl font-bold">
-            {DAY_NAMES[dayOfWeek]}, {MONTH_NAMES[month]} {day}
-          </h1>
-          <p className="text-sm text-default-500">
-            {year}
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight">
+              {DAY_NAMES[dayOfWeek]}, {MONTH_NAMES[month]} {day}
+            </h1>
             {isToday && (
-              <span className="ml-2 text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-wider">
                 Today
               </span>
             )}
-          </p>
+          </div>
+          <p className="text-[11px] text-default-400 font-medium">{year}</p>
         </div>
+        <ThemeSwitcher />
       </header>
 
-      {/* Day content */}
+      {/* Hour timeline */}
       <div className="flex-1 overflow-y-auto">
-        {/* Hour timeline */}
-        <div className="divide-y divide-default-100">
+        <div className="relative">
           {Array.from({ length: 24 }, (_, i) => {
             const hour = i;
             const label =
@@ -88,16 +92,24 @@ export default function DayPage() {
                   : hour === 12
                     ? "12 PM"
                     : `${hour - 12} PM`;
+            const isCurrent = hour === currentHour;
 
             return (
-              <div
-                key={hour}
-                className="flex min-h-[60px] hover:bg-content2 transition-colors"
-              >
-                <div className="w-16 sm:w-20 shrink-0 py-2 pr-3 text-right text-xs text-default-400">
+              <div key={hour} className="flex min-h-[64px] group relative">
+                <div
+                  className={`w-16 sm:w-20 shrink-0 py-2.5 pr-3 text-right text-[11px] font-semibold ${
+                    isCurrent ? "text-primary" : "text-default-300"
+                  }`}
+                >
                   {label}
                 </div>
-                <div className="flex-1 border-l border-default-200 py-2 px-3" />
+                <div className="flex-1 border-l border-t border-default-200/30 group-hover:bg-primary/[0.03] transition-colors" />
+                {isCurrent && (
+                  <div className="absolute left-16 sm:left-20 right-0 top-0 flex items-center z-10">
+                    <div className="w-2.5 h-2.5 rounded-full bg-primary -ml-[5px] shadow-lg shadow-primary/30" />
+                    <div className="flex-1 h-[2px] bg-primary/60" />
+                  </div>
+                )}
               </div>
             );
           })}

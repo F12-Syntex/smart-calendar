@@ -10,3 +10,11 @@
     --font-sans: "font", sans-serif;
     --font-mono: "monospace", monospace;
 }
+
+/* Modern calendar styles */
+@layer base {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--heroui-default-300)) transparent;
+    }
+}
