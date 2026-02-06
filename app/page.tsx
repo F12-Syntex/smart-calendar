@@ -1,5 +1,5 @@
-import { CalendarView } from "@/components/calendar/calendar-view";
+import { PlannerView } from "@/components/planner";
 
 export default function Home() {
-  return <CalendarView />;
+  return <PlannerView />;
 }

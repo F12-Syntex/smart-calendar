@@ -1,8 +1,8 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "Smart Calendar",
-  description: "A full-page calendar application built with HeroUI.",
+  name: "Smart Planner",
+  description: "An AI-powered day/week/month/year planner built with HeroUI.",
   themes: [
     { key: "light", label: "Light", type: "light" },
     { key: "dark", label: "Dark", type: "dark" },
