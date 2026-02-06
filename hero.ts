@@ -1,11 +1,59 @@
 import { heroui } from "@heroui/theme";
 
+// Shared neutral bases — every theme uses the same grays.
+// Only the primary accent color changes per theme.
+const DARK_BASE = {
+  background: "#09090B",
+  foreground: "#FAFAFA",
+  content1: "#18181B",
+  content2: "#27272A",
+  content3: "#3F3F46",
+  content4: "#52525B",
+  default: {
+    50: "#18181B",
+    100: "#27272A",
+    200: "#3F3F46",
+    300: "#52525B",
+    400: "#71717A",
+    500: "#A1A1AA",
+    600: "#D4D4D8",
+    700: "#E4E4E7",
+    800: "#F4F4F5",
+    900: "#FAFAFA",
+    DEFAULT: "#3F3F46",
+    foreground: "#FAFAFA",
+  },
+};
+
+const LIGHT_BASE = {
+  background: "#FAFAFA",
+  foreground: "#09090B",
+  content1: "#FFFFFF",
+  content2: "#F4F4F5",
+  content3: "#E4E4E7",
+  content4: "#D4D4D8",
+  default: {
+    50: "#FAFAFA",
+    100: "#F4F4F5",
+    200: "#E4E4E7",
+    300: "#D4D4D8",
+    400: "#A1A1AA",
+    500: "#71717A",
+    600: "#52525B",
+    700: "#3F3F46",
+    800: "#27272A",
+    900: "#18181B",
+    DEFAULT: "#E4E4E7",
+    foreground: "#09090B",
+  },
+};
+
 export default heroui({
   themes: {
+    // ── LIGHT: Indigo ──
     light: {
       colors: {
-        background: "#FAFAFA",
-        foreground: "#11181C",
+        ...LIGHT_BASE,
         primary: {
           50: "#EEF2FF",
           100: "#E0E7FF",
@@ -20,31 +68,14 @@ export default heroui({
           DEFAULT: "#6366F1",
           foreground: "#FFFFFF",
         },
-        content1: "#FFFFFF",
-        content2: "#F4F4F5",
-        content3: "#E4E4E7",
-        content4: "#D4D4D8",
-        default: {
-          50: "#FAFAFA",
-          100: "#F4F4F5",
-          200: "#E4E4E7",
-          300: "#D4D4D8",
-          400: "#A1A1AA",
-          500: "#71717A",
-          600: "#52525B",
-          700: "#3F3F46",
-          800: "#27272A",
-          900: "#18181B",
-          DEFAULT: "#E4E4E7",
-          foreground: "#11181C",
-        },
         focus: "#6366F1",
       },
     },
+
+    // ── DARK: Indigo ──
     dark: {
       colors: {
-        background: "#09090B",
-        foreground: "#FAFAFA",
+        ...DARK_BASE,
         primary: {
           50: "#EEF2FF",
           100: "#E0E7FF",
@@ -59,32 +90,15 @@ export default heroui({
           DEFAULT: "#818CF8",
           foreground: "#FFFFFF",
         },
-        content1: "#18181B",
-        content2: "#27272A",
-        content3: "#3F3F46",
-        content4: "#52525B",
-        default: {
-          50: "#18181B",
-          100: "#27272A",
-          200: "#3F3F46",
-          300: "#52525B",
-          400: "#71717A",
-          500: "#A1A1AA",
-          600: "#D4D4D8",
-          700: "#E4E4E7",
-          800: "#F4F4F5",
-          900: "#FAFAFA",
-          DEFAULT: "#3F3F46",
-          foreground: "#FAFAFA",
-        },
         focus: "#818CF8",
       },
     },
+
+    // ── OCEAN: Blue ──
     ocean: {
       extend: "dark",
       colors: {
-        background: "#020B18",
-        foreground: "#F0F6FF",
+        ...DARK_BASE,
         primary: {
           50: "#EFF6FF",
           100: "#DBEAFE",
@@ -97,34 +111,17 @@ export default heroui({
           800: "#1E40AF",
           900: "#1E3A8A",
           DEFAULT: "#60A5FA",
-          foreground: "#020B18",
-        },
-        content1: "#0C1929",
-        content2: "#132240",
-        content3: "#1A2D52",
-        content4: "#243B6A",
-        default: {
-          50: "#0C1929",
-          100: "#132240",
-          200: "#1A2D52",
-          300: "#243B6A",
-          400: "#4A6FA5",
-          500: "#7B9CC7",
-          600: "#A8C1E0",
-          700: "#C8D9ED",
-          800: "#E2ECF6",
-          900: "#F0F6FF",
-          DEFAULT: "#1A2D52",
-          foreground: "#F0F6FF",
+          foreground: "#FFFFFF",
         },
         focus: "#60A5FA",
       },
     },
+
+    // ── FOREST: Emerald ──
     forest: {
       extend: "dark",
       colors: {
-        background: "#021A08",
-        foreground: "#ECFDF3",
+        ...DARK_BASE,
         primary: {
           50: "#ECFDF5",
           100: "#D1FAE5",
@@ -137,34 +134,17 @@ export default heroui({
           800: "#065F46",
           900: "#064E3B",
           DEFAULT: "#34D399",
-          foreground: "#021A08",
-        },
-        content1: "#071F10",
-        content2: "#0D2E18",
-        content3: "#153D22",
-        content4: "#1E4D2E",
-        default: {
-          50: "#071F10",
-          100: "#0D2E18",
-          200: "#153D22",
-          300: "#1E4D2E",
-          400: "#3D7A56",
-          500: "#5EA87C",
-          600: "#86C9A0",
-          700: "#ADE2C2",
-          800: "#D1F2DE",
-          900: "#ECFDF3",
-          DEFAULT: "#153D22",
-          foreground: "#ECFDF3",
+          foreground: "#FFFFFF",
         },
         focus: "#34D399",
       },
     },
+
+    // ── SUNSET: Orange ──
     sunset: {
       extend: "light",
       colors: {
-        background: "#FFFBF5",
-        foreground: "#1C1105",
+        ...LIGHT_BASE,
         primary: {
           50: "#FFF7ED",
           100: "#FFEDD5",
@@ -179,32 +159,15 @@ export default heroui({
           DEFAULT: "#F97316",
           foreground: "#FFFFFF",
         },
-        content1: "#FFFFFF",
-        content2: "#FFF3E6",
-        content3: "#FFE8CC",
-        content4: "#FFDDB3",
-        default: {
-          50: "#FFFBF5",
-          100: "#FFF3E6",
-          200: "#FFE8CC",
-          300: "#FFDDB3",
-          400: "#D4A574",
-          500: "#A87A4F",
-          600: "#7C5A38",
-          700: "#5C4028",
-          800: "#3D2A1A",
-          900: "#1C1105",
-          DEFAULT: "#FFE8CC",
-          foreground: "#1C1105",
-        },
         focus: "#F97316",
       },
     },
+
+    // ── PURPLE: Violet ──
     "purple-dark": {
       extend: "dark",
       colors: {
-        background: "#0A0015",
-        foreground: "#F5F0FF",
+        ...DARK_BASE,
         primary: {
           50: "#FAF5FF",
           100: "#F3E8FF",
@@ -217,34 +180,17 @@ export default heroui({
           800: "#6B21A8",
           900: "#581C87",
           DEFAULT: "#C084FC",
-          foreground: "#0A0015",
-        },
-        content1: "#130025",
-        content2: "#1C0038",
-        content3: "#28004F",
-        content4: "#350066",
-        default: {
-          50: "#130025",
-          100: "#1C0038",
-          200: "#28004F",
-          300: "#350066",
-          400: "#6B3FA0",
-          500: "#9171C7",
-          600: "#B5A0E0",
-          700: "#D1C4ED",
-          800: "#E8E0F6",
-          900: "#F5F0FF",
-          DEFAULT: "#28004F",
-          foreground: "#F5F0FF",
+          foreground: "#FFFFFF",
         },
         focus: "#C084FC",
       },
     },
+
+    // ── ROSE: Pink ──
     rose: {
       extend: "light",
       colors: {
-        background: "#FFFBFC",
-        foreground: "#1C0510",
+        ...LIGHT_BASE,
         primary: {
           50: "#FFF1F2",
           100: "#FFE4E6",
@@ -259,32 +205,15 @@ export default heroui({
           DEFAULT: "#F43F5E",
           foreground: "#FFFFFF",
         },
-        content1: "#FFFFFF",
-        content2: "#FFF0F2",
-        content3: "#FFE0E5",
-        content4: "#FFD0D8",
-        default: {
-          50: "#FFFBFC",
-          100: "#FFF0F2",
-          200: "#FFE0E5",
-          300: "#FFD0D8",
-          400: "#D4919C",
-          500: "#A86672",
-          600: "#7C4550",
-          700: "#5C303A",
-          800: "#3D1E26",
-          900: "#1C0510",
-          DEFAULT: "#FFE0E5",
-          foreground: "#1C0510",
-        },
         focus: "#F43F5E",
       },
     },
+
+    // ── MIDNIGHT: Cyan ──
     midnight: {
       extend: "dark",
       colors: {
-        background: "#010814",
-        foreground: "#E8F1FA",
+        ...DARK_BASE,
         primary: {
           50: "#ECFEFF",
           100: "#CFFAFE",
@@ -297,25 +226,7 @@ export default heroui({
           800: "#155E75",
           900: "#164E63",
           DEFAULT: "#22D3EE",
-          foreground: "#010814",
-        },
-        content1: "#0A1628",
-        content2: "#111F36",
-        content3: "#1A2C48",
-        content4: "#24395A",
-        default: {
-          50: "#0A1628",
-          100: "#111F36",
-          200: "#1A2C48",
-          300: "#24395A",
-          400: "#4A6B93",
-          500: "#7595B8",
-          600: "#9FB8D4",
-          700: "#C2D4E6",
-          800: "#DDE8F2",
-          900: "#E8F1FA",
-          DEFAULT: "#1A2C48",
-          foreground: "#E8F1FA",
+          foreground: "#FFFFFF",
         },
         focus: "#22D3EE",
       },

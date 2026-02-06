@@ -10,12 +10,12 @@ import { siteConfig } from "@/config/site";
 const THEME_COLORS: Record<string, { bg: string; accent: string }> = {
   light: { bg: "#FAFAFA", accent: "#6366F1" },
   dark: { bg: "#09090B", accent: "#818CF8" },
-  ocean: { bg: "#020B18", accent: "#60A5FA" },
-  forest: { bg: "#021A08", accent: "#34D399" },
-  sunset: { bg: "#FFFBF5", accent: "#F97316" },
-  "purple-dark": { bg: "#0A0015", accent: "#C084FC" },
-  rose: { bg: "#FFFBFC", accent: "#F43F5E" },
-  midnight: { bg: "#010814", accent: "#22D3EE" },
+  ocean: { bg: "#09090B", accent: "#60A5FA" },
+  forest: { bg: "#09090B", accent: "#34D399" },
+  sunset: { bg: "#FAFAFA", accent: "#F97316" },
+  "purple-dark": { bg: "#09090B", accent: "#C084FC" },
+  rose: { bg: "#FAFAFA", accent: "#F43F5E" },
+  midnight: { bg: "#09090B", accent: "#22D3EE" },
 };
 
 export const ThemeSwitcher: FC = () => {
