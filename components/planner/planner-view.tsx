@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tabs, Tab } from "@heroui/tabs";
 
 import { PlannerHeader } from "@/components/navbar";
@@ -8,81 +8,60 @@ import { DayView } from "@/components/planner/day-view";
 import { WeekView } from "@/components/planner/week-view";
 import { MonthView } from "@/components/planner/month-view";
 import { YearView } from "@/components/planner/year-view";
+import { GoalChat } from "@/components/planner/goal-chat";
 
 type ViewTab = "day" | "week" | "month" | "year";
 
 export const PlannerView = () => {
-  const today = new Date();
   const [activeTab, setActiveTab] = useState<ViewTab>("day");
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [currentDay, setCurrentDay] = useState(today.getDate());
+  const [hasGoals, setHasGoals] = useState<boolean | null>(null); // null = loading
 
-  const onPrev = () => {
-    if (activeTab === "day") {
-      const prev = new Date(currentYear, currentMonth, currentDay - 1);
-      setCurrentDay(prev.getDate());
-      setCurrentMonth(prev.getMonth());
-      setCurrentYear(prev.getFullYear());
-    } else if (activeTab === "week") {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    } else if (activeTab === "month") {
-      setCurrentYear(currentYear - 1);
-    }
+  const checkGoals = useCallback(async () => {
+    const res = await fetch("/api/goals");
+    const goals = await res.json();
+    setHasGoals(goals.length > 0);
+  }, []);
+
+  useEffect(() => {
+    checkGoals();
+  }, [checkGoals]);
+
+  const onGoalsComplete = () => {
+    setHasGoals(true);
   };
 
-  const onNext = () => {
-    if (activeTab === "day") {
-      const next = new Date(currentYear, currentMonth, currentDay + 1);
-      setCurrentDay(next.getDate());
-      setCurrentMonth(next.getMonth());
-      setCurrentYear(next.getFullYear());
-    } else if (activeTab === "week") {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
-    } else if (activeTab === "month") {
-      setCurrentYear(currentYear + 1);
-    }
-  };
+  // Loading state
+  if (hasGoals === null) {
+    return (
+      <>
+        <PlannerHeader activeTab={activeTab} />
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-default-400">Loading...</p>
+        </div>
+      </>
+    );
+  }
 
-  const onToday = () => {
-    const now = new Date();
-    setCurrentDay(now.getDate());
-    setCurrentMonth(now.getMonth());
-    setCurrentYear(now.getFullYear());
-  };
-
-  const onMonthSelect = (month: number) => {
-    setCurrentMonth(month);
-    setActiveTab("week");
-  };
+  // No goals — show onboarding chat
+  if (!hasGoals) {
+    return (
+      <>
+        <PlannerHeader activeTab={activeTab} />
+        <div className="flex-1 overflow-hidden">
+          <GoalChat onGoalsComplete={onGoalsComplete} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
-      <PlannerHeader
-        activeTab={activeTab}
-        currentDay={currentDay}
-        currentMonth={currentMonth}
-        currentYear={currentYear}
-        onNext={onNext}
-        onPrev={onPrev}
-        onToday={onToday}
-      />
+      <PlannerHeader activeTab={activeTab} />
 
       <div className="px-4 sm:px-6 pt-3 shrink-0">
         <Tabs
           classNames={{
-            tabList:
-              "bg-default-100/50 rounded-2xl p-1 gap-0",
+            tabList: "bg-default-100/50 rounded-2xl p-1 gap-0",
             tab: "rounded-xl h-8 text-xs font-semibold",
             cursor: "rounded-xl",
           }}
@@ -100,15 +79,8 @@ export const PlannerView = () => {
 
       <div className="flex-1 overflow-hidden">
         {activeTab === "day" && <DayView />}
-        {activeTab === "week" && (
-          <WeekView currentMonth={currentMonth} currentYear={currentYear} />
-        )}
-        {activeTab === "month" && (
-          <MonthView
-            currentYear={currentYear}
-            onMonthSelect={onMonthSelect}
-          />
-        )}
+        {activeTab === "week" && <WeekView />}
+        {activeTab === "month" && <MonthView />}
         {activeTab === "year" && <YearView />}
       </div>
     </>

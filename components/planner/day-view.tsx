@@ -1,27 +1,15 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
+
+import { TaskList, type TaskData } from "@/components/planner/task-list";
+
 const DAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 export const DayView = () => {
@@ -31,6 +19,31 @@ export const DayView = () => {
   const year = today.getFullYear();
   const dayOfWeek = today.getDay();
   const currentHour = today.getHours();
+
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+
+  const fetchTasks = useCallback(async () => {
+    const res = await fetch(
+      `/api/tasks?scope=day&year=${year}&month=${month}&day=${day}`,
+    );
+    const data = await res.json();
+    setTasks(data);
+  }, [year, month, day]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  const onToggle = async (id: string, completed: boolean) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed } : t)),
+    );
+    await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, completed }),
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -57,6 +70,21 @@ export const DayView = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Tasks section */}
+        {tasks.length > 0 && (
+          <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
+            <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
+              Today&apos;s Tasks
+            </h3>
+            <TaskList
+              emptyMessage="No tasks for today"
+              tasks={tasks}
+              onToggle={onToggle}
+            />
+          </div>
+        )}
+
+        {/* Timeline */}
         <div className="relative">
           {Array.from({ length: 24 }, (_, i) => {
             const hour = i;

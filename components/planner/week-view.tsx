@@ -1,166 +1,121 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
+
+import { TaskList, type TaskData } from "@/components/planner/task-list";
+
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DAY_NAMES = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
 
-const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function getCurrentWeekDays(): Date[] {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - dayOfWeek); // Sunday
 
-interface WeekInfo {
-  weekNumber: number;
-  startDate: Date;
-  endDate: Date;
-  days: Date[];
-}
-
-function getWeeksOfMonth(year: number, month: number): WeekInfo[] {
-  const weeks: WeekInfo[] = [];
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-
-  let currentDate = new Date(firstDay);
-  // Adjust to start of week (Sunday)
-  currentDate.setDate(currentDate.getDate() - currentDate.getDay());
-
-  let weekNum = 1;
-
-  while (currentDate <= lastDay || weekNum === 1) {
-    const days: Date[] = [];
-    const weekStart = new Date(currentDate);
-
-    for (let i = 0; i < 7; i++) {
-      days.push(new Date(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    const weekEnd = new Date(days[6]);
-
-    weeks.push({
-      weekNumber: weekNum,
-      startDate: weekStart,
-      endDate: weekEnd,
-      days,
-    });
-
-    weekNum++;
-
-    if (currentDate.getMonth() !== month && currentDate.getDay() === 0) {
-      break;
-    }
+  const days: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    days.push(d);
   }
-
-  return weeks;
+  return days;
 }
 
-function formatShortDate(date: Date): string {
-  return `${date.getDate()}`;
+function getWeekOfMonth(): number {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstDayOfWeek = firstDay.getDay();
+  return Math.ceil((today.getDate() + firstDayOfWeek) / 7);
 }
 
-interface WeekViewProps {
-  currentMonth: number;
-  currentYear: number;
-}
-
-export const WeekView = ({ currentMonth, currentYear }: WeekViewProps) => {
+export const WeekView = () => {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
-  const weeks = getWeeksOfMonth(currentYear, currentMonth);
+  const weekDays = getCurrentWeekDays();
+  const weekOfMonth = getWeekOfMonth();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+
+  const fetchTasks = useCallback(async () => {
+    const res = await fetch(
+      `/api/tasks?scope=week&year=${year}&month=${month}&week=${weekOfMonth}`,
+    );
+    const data = await res.json();
+    setTasks(data);
+  }, [year, month, weekOfMonth]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  const onToggle = async (id: string, completed: boolean) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed } : t)),
+    );
+    await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, completed }),
+    });
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
         <h2 className="text-lg font-bold tracking-tight">
-          {MONTH_NAMES[currentMonth]} {currentYear}
+          Week {weekOfMonth} — {MONTH_NAMES[month]}
         </h2>
         <p className="text-xs text-default-400 font-medium">
-          {weeks.length} weeks
+          {MONTH_NAMES[weekDays[0].getMonth()].slice(0, 3)}{" "}
+          {weekDays[0].getDate()} — {MONTH_NAMES[weekDays[6].getMonth()].slice(0, 3)}{" "}
+          {weekDays[6].getDate()}, {year}
         </p>
       </div>
 
-      <div className="flex-1 p-4 sm:p-6 space-y-3">
-        {weeks.map((week) => {
-          const hasToday = week.days.some((d) => {
-            const dStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-            return dStr === todayStr;
-          });
+      {/* Week day headers */}
+      <div className="px-4 sm:px-6 py-3 border-b border-default-200/30">
+        <div className="grid grid-cols-7 gap-1.5">
+          {weekDays.map((day, i) => {
+            const dayStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+            const isToday = dayStr === todayStr;
 
-          return (
-            <div
-              key={week.weekNumber}
-              className={`rounded-2xl border p-4 transition-all ${
-                hasToday
-                  ? "border-primary/40 bg-primary/[0.04] shadow-sm"
-                  : "border-default-200/30 bg-default-50/50 hover:bg-default-100/50"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">
-                    Week {week.weekNumber}
-                  </span>
-                  {hasToday && (
-                    <span className="text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Current
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-default-400 font-medium">
-                  {MONTH_NAMES[week.startDate.getMonth()].slice(0, 3)}{" "}
-                  {week.startDate.getDate()} —{" "}
-                  {MONTH_NAMES[week.endDate.getMonth()].slice(0, 3)}{" "}
-                  {week.endDate.getDate()}
+            return (
+              <div
+                key={i}
+                className={`flex flex-col items-center py-2 rounded-xl transition-colors ${
+                  isToday
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground"
+                }`}
+              >
+                <span className="text-[10px] font-medium uppercase">
+                  {DAY_NAMES[day.getDay()].slice(0, 3)}
                 </span>
+                <span className="text-sm font-bold">{day.getDate()}</span>
               </div>
+            );
+          })}
+        </div>
+      </div>
 
-              <div className="grid grid-cols-7 gap-1.5">
-                {week.days.map((day, i) => {
-                  const dayStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
-                  const isToday = dayStr === todayStr;
-                  const isCurrentMonth = day.getMonth() === currentMonth;
-
-                  return (
-                    <div
-                      key={i}
-                      className={`flex flex-col items-center py-2 rounded-xl transition-colors ${
-                        isToday
-                          ? "bg-primary text-primary-foreground"
-                          : isCurrentMonth
-                            ? "text-foreground"
-                            : "text-default-300"
-                      }`}
-                    >
-                      <span className="text-[10px] font-medium uppercase">
-                        {DAY_NAMES_SHORT[i]}
-                      </span>
-                      <span
-                        className={`text-sm font-bold ${isToday ? "" : ""}`}
-                      >
-                        {formatShortDate(day)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-default-200/20">
-                <p className="text-xs text-default-300 italic">
-                  No tasks planned
-                </p>
-              </div>
-            </div>
-          );
-        })}
+      {/* Tasks */}
+      <div className="flex-1 px-4 sm:px-6 py-4">
+        <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
+          This Week&apos;s Tasks
+        </h3>
+        <TaskList
+          emptyMessage="No tasks for this week"
+          tasks={tasks}
+          onToggle={onToggle}
+        />
       </div>
     </div>
   );

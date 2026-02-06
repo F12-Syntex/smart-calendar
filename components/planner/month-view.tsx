@@ -1,98 +1,115 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
+
+import { TaskList, type TaskData } from "@/components/planner/task-list";
+
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-const MONTH_SHORT = [
-  "JAN",
-  "FEB",
-  "MAR",
-  "APR",
-  "MAY",
-  "JUN",
-  "JUL",
-  "AUG",
-  "SEP",
-  "OCT",
-  "NOV",
-  "DEC",
-];
-
-interface MonthViewProps {
-  currentYear: number;
-  onMonthSelect: (month: number) => void;
+interface MonthlyPlanData {
+  id: string;
+  summary: string;
+  month: number;
+  year: number;
 }
 
-export const MonthView = ({ currentYear, onMonthSelect }: MonthViewProps) => {
+export const MonthView = () => {
   const today = new Date();
-  const currentMonth = today.getMonth();
-  const isCurrentYear = today.getFullYear() === currentYear;
+  const month = today.getMonth();
+  const year = today.getFullYear();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dayOfMonth = today.getDate();
+  const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
+
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [plan, setPlan] = useState<MonthlyPlanData | null>(null);
+
+  const fetchData = useCallback(async () => {
+    const [tasksRes, goalsRes] = await Promise.all([
+      fetch(`/api/tasks?scope=month&year=${year}&month=${month}`),
+      fetch("/api/goals"),
+    ]);
+    const tasksData = await tasksRes.json();
+    setTasks(tasksData);
+
+    const goalsData = await goalsRes.json();
+    // Find the monthly plan for current month
+    for (const goal of goalsData) {
+      const mp = goal.monthlyPlans?.find(
+        (p: MonthlyPlanData) => p.month === month && p.year === year,
+      );
+      if (mp) {
+        setPlan(mp);
+        break;
+      }
+    }
+  }, [year, month]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const onToggle = async (id: string, completed: boolean) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed } : t)),
+    );
+    await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, completed }),
+    });
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
-        <h2 className="text-lg font-bold tracking-tight">{currentYear}</h2>
-        <p className="text-xs text-default-400 font-medium">12 months</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">
+              {MONTH_NAMES[month]} {year}
+            </h2>
+            <p className="text-xs text-default-400 font-medium">
+              Day {dayOfMonth} of {daysInMonth}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-bold text-primary">
+              {monthProgress}%
+            </span>
+            <p className="text-[10px] text-default-400">complete</p>
+          </div>
+        </div>
+        <div className="w-full h-2 bg-default-200/30 rounded-full overflow-hidden mt-3">
+          <div
+            className="h-full bg-primary rounded-full transition-all"
+            style={{ width: `${monthProgress}%` }}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 p-4 sm:p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {MONTH_NAMES.map((name, i) => {
-            const isNow = isCurrentYear && i === currentMonth;
-            const isPast = isCurrentYear && i < currentMonth;
-            const daysInMonth = new Date(currentYear, i + 1, 0).getDate();
-
-            return (
-              <button
-                key={i}
-                className={`relative rounded-2xl border p-4 text-left transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${
-                  isNow
-                    ? "border-primary/40 bg-primary/[0.06] shadow-sm"
-                    : isPast
-                      ? "border-default-200/20 bg-default-50/30 opacity-60"
-                      : "border-default-200/30 bg-default-50/50 hover:bg-default-100/50"
-                }`}
-                onClick={() => onMonthSelect(i)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-[11px] font-bold tracking-widest ${
-                      isNow ? "text-primary" : "text-default-400"
-                    }`}
-                  >
-                    {MONTH_SHORT[i]}
-                  </span>
-                  {isNow && (
-                    <span className="text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                      Now
-                    </span>
-                  )}
-                </div>
-                <p className="text-base font-bold tracking-tight">{name}</p>
-                <p className="text-[11px] text-default-400 mt-1">
-                  {daysInMonth} days
-                </p>
-                <div className="mt-3 pt-2 border-t border-default-200/20">
-                  <p className="text-[11px] text-default-300 italic">
-                    No tasks
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+      {/* Monthly focus/plan */}
+      {plan && (
+        <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
+          <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
+            Monthly Focus
+          </h3>
+          <p className="text-sm text-foreground/80">{plan.summary}</p>
         </div>
+      )}
+
+      {/* Tasks */}
+      <div className="flex-1 px-4 sm:px-6 py-4">
+        <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
+          Monthly Tasks
+        </h3>
+        <TaskList
+          emptyMessage="No tasks for this month"
+          tasks={tasks}
+          onToggle={onToggle}
+        />
       </div>
     </div>
   );

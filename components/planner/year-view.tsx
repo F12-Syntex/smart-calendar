@@ -1,19 +1,18 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
+
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
+
+interface GoalData {
+  id: string;
+  title: string;
+  description: string;
+  monthlyPlans: { month: number; year: number; summary: string }[];
+}
 
 export const YearView = () => {
   const today = new Date();
@@ -21,7 +20,6 @@ export const YearView = () => {
   const currentMonth = today.getMonth();
   const currentDay = today.getDate();
 
-  // Calculate progress through the year
   const startOfYear = new Date(year, 0, 1);
   const endOfYear = new Date(year, 11, 31);
   const totalDays =
@@ -29,10 +27,29 @@ export const YearView = () => {
   const dayOfYear =
     (today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24) + 1;
   const progressPercent = Math.round((dayOfYear / totalDays) * 100);
-
-  // Calculate remaining
   const remainingDays = Math.round(totalDays - dayOfYear);
-  const remainingMonths = 11 - currentMonth;
+
+  const [goals, setGoals] = useState<GoalData[]>([]);
+
+  const fetchGoals = useCallback(async () => {
+    const res = await fetch("/api/goals");
+    const data = await res.json();
+    setGoals(data);
+  }, []);
+
+  useEffect(() => {
+    fetchGoals();
+  }, [fetchGoals]);
+
+  // Build month summaries from goals
+  const monthSummaries: Record<number, string> = {};
+  for (const goal of goals) {
+    for (const plan of goal.monthlyPlans || []) {
+      if (plan.year === year) {
+        monthSummaries[plan.month] = plan.summary;
+      }
+    }
+  }
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -64,72 +81,72 @@ export const YearView = () => {
           </div>
         </div>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-4 text-center">
-            <p className="text-2xl font-bold text-primary">{year}</p>
-            <p className="text-[11px] text-default-400 font-medium mt-1">
-              Current Year
-            </p>
+        {/* Goals */}
+        {goals.length > 0 && (
+          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-5">
+            <h3 className="text-sm font-bold mb-3">
+              {year} Goals
+            </h3>
+            <div className="space-y-3">
+              {goals.map((goal) => (
+                <div
+                  key={goal.id}
+                  className="rounded-xl border border-default-200/20 p-3"
+                >
+                  <p className="text-sm font-semibold">{goal.title}</p>
+                  <p className="text-[11px] text-default-400 mt-0.5">
+                    {goal.description}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-4 text-center">
-            <p className="text-2xl font-bold">{MONTH_NAMES[currentMonth].slice(0, 3)}</p>
-            <p className="text-[11px] text-default-400 font-medium mt-1">
-              Current Month
-            </p>
-          </div>
-          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-4 text-center">
-            <p className="text-2xl font-bold">{currentDay}</p>
-            <p className="text-[11px] text-default-400 font-medium mt-1">
-              Day of Month
-            </p>
-          </div>
-          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-4 text-center">
-            <p className="text-2xl font-bold">{remainingMonths}</p>
-            <p className="text-[11px] text-default-400 font-medium mt-1">
-              Months Left
-            </p>
-          </div>
-        </div>
+        )}
 
-        {/* Month progress bars */}
+        {/* Monthly breakdown with AI summaries */}
         <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-5">
-          <h3 className="text-sm font-bold mb-4">Monthly Breakdown</h3>
+          <h3 className="text-sm font-bold mb-4">Monthly Plan</h3>
           <div className="space-y-2.5">
             {MONTH_NAMES.map((name, i) => {
               const isCurrentMo = i === currentMonth;
               const isPast = i < currentMonth;
               const daysInMonth = new Date(year, i + 1, 0).getDate();
               let monthProgress = 0;
-
               if (isPast) monthProgress = 100;
               else if (isCurrentMo)
                 monthProgress = Math.round((currentDay / daysInMonth) * 100);
 
               return (
-                <div key={i} className="flex items-center gap-3">
-                  <span
-                    className={`text-[11px] font-semibold w-8 ${
-                      isCurrentMo ? "text-primary" : "text-default-400"
-                    }`}
-                  >
-                    {name.slice(0, 3)}
-                  </span>
-                  <div className="flex-1 h-2 bg-default-200/30 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        isCurrentMo
-                          ? "bg-primary"
-                          : isPast
-                            ? "bg-default-300"
-                            : "bg-transparent"
+                <div key={i}>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-[11px] font-semibold w-8 ${
+                        isCurrentMo ? "text-primary" : "text-default-400"
                       }`}
-                      style={{ width: `${monthProgress}%` }}
-                    />
+                    >
+                      {name.slice(0, 3)}
+                    </span>
+                    <div className="flex-1 h-2 bg-default-200/30 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          isCurrentMo
+                            ? "bg-primary"
+                            : isPast
+                              ? "bg-default-300"
+                              : "bg-transparent"
+                        }`}
+                        style={{ width: `${monthProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-default-400 w-8 text-right">
+                      {monthProgress > 0 ? `${monthProgress}%` : "—"}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-default-400 w-8 text-right">
-                    {monthProgress > 0 ? `${monthProgress}%` : "—"}
-                  </span>
+                  {monthSummaries[i] && (
+                    <p className="text-[11px] text-default-400 ml-11 mt-0.5">
+                      {monthSummaries[i]}
+                    </p>
+                  )}
                 </div>
               );
             })}

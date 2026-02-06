@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Goal {
+  id           String        @id @default(cuid())
+  title        String
+  description  String
+  year         Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  monthlyPlans MonthlyPlan[]
+}
+
+model MonthlyPlan {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  month     Int
+  year      Int
+  summary   String
+  tasks     Task[]
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  completed     Boolean      @default(false)
+  monthlyPlanId String?
+  monthlyPlan   MonthlyPlan? @relation(fields: [monthlyPlanId], references: [id], onDelete: SetNull)
+  scope         String
+  scopeYear     Int
+  scopeMonth    Int?
+  scopeWeek     Int?
+  scopeDay      Int?
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String
+  sessionId String
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
