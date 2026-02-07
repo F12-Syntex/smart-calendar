@@ -73,6 +73,8 @@ export async function PATCH(request: NextRequest) {
   if (typeof updates.completed === "boolean") data.completed = updates.completed;
   if (typeof updates.title === "string") data.title = updates.title;
   if (updates.description !== undefined) data.description = updates.description;
+  if (typeof updates.startHour === "number") data.startHour = updates.startHour;
+  if (typeof updates.durationMinutes === "number") data.durationMinutes = updates.durationMinutes;
 
   const task = await prisma.task.update({
     where: { id },

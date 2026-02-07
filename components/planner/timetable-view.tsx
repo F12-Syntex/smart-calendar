@@ -10,6 +10,8 @@ interface TaskData {
   description?: string | null;
   completed: boolean;
   scopeDay?: number | null;
+  startHour?: number | null;
+  durationMinutes?: number | null;
 }
 
 const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -109,12 +111,19 @@ export const TimetableView = () => {
     });
   };
 
-  // Build time slot assignments: distribute each day's tasks starting at 8 AM in 2hr blocks
+  // Build time slot assignments: use startHour if available, fallback to index-based (8 AM + 2hr blocks)
   const getTaskAtSlot = (dayDate: Date, hour: number): TaskData | null => {
     const tasks = dayTasks[dayDate.getDate()] || [];
+    // First check for tasks with explicit startHour matching this slot
+    const scheduled = tasks.find(
+      (t) => t.startHour != null && Math.floor(t.startHour) === hour,
+    );
+    if (scheduled) return scheduled;
+    // Fallback: tasks without startHour placed sequentially from 8 AM in 2hr blocks
+    const unscheduled = tasks.filter((t) => t.startHour == null);
     const taskIndex = Math.floor((hour - 8) / 2);
-    if (taskIndex >= 0 && taskIndex < tasks.length) {
-      return tasks[taskIndex];
+    if (taskIndex >= 0 && taskIndex < unscheduled.length) {
+      return unscheduled[taskIndex];
     }
     return null;
   };

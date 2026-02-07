@@ -1,10 +1,10 @@
 "use client";
 
+import { Calendar } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { CalendarIcon } from "@/components/icons";
 import { Tabs, Tab } from "@heroui/tabs";
 
-type ViewTab = "day" | "week" | "month" | "year" | "timetable" | "goals";
+type ViewTab = "day" | "week" | "month" | "year" | "timetable" | "settings";
 
 interface PlannerHeaderProps {
   activeTab: ViewTab;
@@ -18,7 +18,7 @@ export const PlannerHeader = ({ activeTab, onTabChange }: PlannerHeaderProps) =>
     <header className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-14 border-b border-default-200/30 bg-background/80 backdrop-blur-xl shrink-0 relative z-20">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-          <CalendarIcon className="text-primary" size={18} />
+          <Calendar className="text-primary" size={18} />
         </div>
         <div className="hidden sm:block">
           <p className="text-sm font-bold tracking-tight leading-none">Smart Planner</p>
@@ -46,7 +46,7 @@ export const PlannerHeader = ({ activeTab, onTabChange }: PlannerHeaderProps) =>
           <Tab key="timetable" title="Timetable" />
           <Tab key="month" title="Month" />
           <Tab key="year" title="Year" />
-          <Tab key="goals" title="Goals" />
+          <Tab key="settings" title="Settings" />
         </Tabs>
       </div>
 

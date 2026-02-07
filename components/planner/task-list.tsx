@@ -11,6 +11,8 @@ export interface TaskData {
   title: string;
   description?: string | null;
   completed: boolean;
+  startHour?: number | null;
+  durationMinutes?: number | null;
 }
 
 interface TaskListProps {

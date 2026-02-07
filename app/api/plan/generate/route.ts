@@ -12,15 +12,32 @@ import {
   getRemainingDaysCountInWeek,
 } from "@/lib/ai-planner";
 import type { GoalInput, CompletionContext } from "@/lib/ai-planner";
+import { fetchDynamicSourcesContext, type DynamicSource } from "@/lib/url-fetcher";
 
-async function getWorkingDays(): Promise<number[]> {
+interface SettingsData {
+  workingDays: number[];
+  dailySchedule: string | null;
+  dynamicSources: DynamicSource[];
+}
+
+async function getSettings(): Promise<SettingsData> {
   let settings = await prisma.settings.findUnique({ where: { id: "default" } });
   if (!settings) {
     settings = await prisma.settings.create({
       data: { id: "default", workingDays: "1,2,3,4,5" },
     });
   }
-  return settings.workingDays.split(",").map(Number);
+  let dynamicSources: DynamicSource[] = [];
+  if (settings.dynamicSources) {
+    try {
+      dynamicSources = JSON.parse(settings.dynamicSources);
+    } catch { /* ignore parse errors */ }
+  }
+  return {
+    workingDays: settings.workingDays.split(",").map(Number),
+    dailySchedule: settings.dailySchedule,
+    dynamicSources,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -57,7 +74,8 @@ export async function POST(request: NextRequest) {
     category: g.category,
   }));
 
-  const workingDays = await getWorkingDays();
+  const settings = await getSettings();
+  const { workingDays } = settings;
 
   try {
     if (scope === "full") {
@@ -117,12 +135,12 @@ export async function POST(request: NextRequest) {
       await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek, goalInputs, workingDays);
 
       // ── Step 4: Today's detailed tasks ──
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays, settings);
     } else if (scope === "week") {
       await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek, goalInputs, workingDays);
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays, settings);
     } else if (scope === "day") {
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays, settings);
     }
 
     return NextResponse.json({ success: true });
@@ -207,6 +225,7 @@ async function generateAndSaveDayTasks(
   dayOfWeek: number,
   goalInputs: GoalInput[],
   workingDays: number[],
+  settings: SettingsData,
 ) {
   const weekTasks = await prisma.task.findMany({
     where: { scope: "week", scopeYear: year, scopeMonth: month, scopeWeek: weekOfMonth },
@@ -238,6 +257,12 @@ async function generateAndSaveDayTasks(
 
   const remainingDaysInWeek = getRemainingDaysCountInWeek(dayOfWeek);
 
+  // Fetch external source content if configured
+  let externalContext: string | null = null;
+  if (settings.dynamicSources.length > 0) {
+    externalContext = await fetchDynamicSourcesContext(settings.dynamicSources);
+  }
+
   const dayTasks = await generateDailyTasks(
     weekTasks.map((t) => ({ title: t.title, completed: t.completed })),
     dayOfWeek,
@@ -246,6 +271,8 @@ async function generateAndSaveDayTasks(
     prevDayCompletion,
     goalInputs,
     workingDays,
+    settings.dailySchedule,
+    externalContext,
   );
 
   for (let i = 0; i < dayTasks.length; i++) {
@@ -258,6 +285,8 @@ async function generateAndSaveDayTasks(
         scopeMonth: month,
         scopeDay: dayOfMonth,
         sortOrder: i,
+        startHour: dayTasks[i].startHour ?? null,
+        durationMinutes: dayTasks[i].durationMinutes ?? null,
       },
     });
   }

@@ -5,6 +5,16 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
 import { Select, SelectItem } from "@heroui/select";
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Trash2,
+  Globe,
+  Clock,
+  Target,
+  CalendarDays,
+} from "lucide-react";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -24,13 +34,26 @@ interface GoalData {
   monthlyPlans: { month: number; year: number; summary: string }[];
 }
 
-export const GoalsView = () => {
+interface DynamicSource {
+  url: string;
+  description: string;
+}
+
+export const SettingsView = () => {
   const year = new Date().getFullYear();
 
   const [goals, setGoals] = useState<GoalData[]>([]);
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [dailySchedule, setDailySchedule] = useState("");
+  const [dynamicSources, setDynamicSources] = useState<DynamicSource[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState("");
+
+  // Collapsible sections
+  const [goalsOpen, setGoalsOpen] = useState(true);
+  const [scheduleOpen, setScheduleOpen] = useState(true);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
+  const [workingDaysOpen, setWorkingDaysOpen] = useState(true);
 
   // New goal form
   const [newTitle, setNewTitle] = useState("");
@@ -48,6 +71,12 @@ export const GoalsView = () => {
     const res = await fetch("/api/settings");
     const data = await res.json();
     setWorkingDays(data.workingDays.split(",").map(Number));
+    setDailySchedule(data.dailySchedule || "");
+    if (data.dynamicSources) {
+      try {
+        setDynamicSources(JSON.parse(data.dynamicSources));
+      } catch { /* ignore */ }
+    }
   }, []);
 
   useEffect(() => {
@@ -55,6 +84,7 @@ export const GoalsView = () => {
     fetchSettings();
   }, [fetchGoals, fetchSettings]);
 
+  // ── Goal actions ──
   const addGoal = async () => {
     if (!newTitle.trim()) return;
     await fetch("/api/goals", {
@@ -93,6 +123,7 @@ export const GoalsView = () => {
     fetchGoals();
   };
 
+  // ── Working days ──
   const toggleWorkingDay = async (day: number) => {
     const next = workingDays.includes(day)
       ? workingDays.filter((d) => d !== day)
@@ -105,6 +136,45 @@ export const GoalsView = () => {
     });
   };
 
+  // ── Daily schedule ──
+  const saveDailySchedule = async () => {
+    await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dailySchedule: dailySchedule || null }),
+    });
+  };
+
+  // ── Dynamic sources ──
+  const saveDynamicSources = async (sources: DynamicSource[]) => {
+    setDynamicSources(sources);
+    await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dynamicSources: JSON.stringify(sources) }),
+    });
+  };
+
+  const addSource = () => {
+    saveDynamicSources([...dynamicSources, { url: "", description: "" }]);
+  };
+
+  const updateSource = (index: number, updates: Partial<DynamicSource>) => {
+    const next = dynamicSources.map((s, i) =>
+      i === index ? { ...s, ...updates } : s,
+    );
+    setDynamicSources(next);
+  };
+
+  const saveSource = (index: number) => {
+    saveDynamicSources(dynamicSources);
+  };
+
+  const removeSource = (index: number) => {
+    saveDynamicSources(dynamicSources.filter((_, i) => i !== index));
+  };
+
+  // ── Sync plan ──
   const syncPlan = async () => {
     setSyncing(true);
     setSyncError("");
@@ -135,9 +205,9 @@ export const GoalsView = () => {
       <div className="px-4 sm:px-6 lg:px-8 py-3 border-b border-default-200/30">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold tracking-tight">{year} Goals</h2>
+            <h2 className="text-base font-bold tracking-tight">Settings</h2>
             <p className="text-[11px] text-default-400 font-medium">
-              {goals.length} goal{goals.length !== 1 ? "s" : ""} set
+              Goals, schedule, and preferences
             </p>
           </div>
           {goals.length > 0 && (
@@ -165,21 +235,24 @@ export const GoalsView = () => {
         )}
       </div>
 
-      <div className="flex-1 p-4 sm:p-5 lg:p-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left: Goals list */}
-          <div className="flex-1 space-y-3">
-            <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider">
-              Your Goals
-            </h3>
-
+      <div className="flex-1 p-4 sm:p-5 lg:p-6 max-w-3xl mx-auto w-full space-y-4">
+        {/* ── Section: Goals ── */}
+        <SectionHeader
+          icon={<Target size={14} />}
+          isOpen={goalsOpen}
+          subtitle={`${goals.length} goal${goals.length !== 1 ? "s" : ""}`}
+          title="Goals"
+          onToggle={() => setGoalsOpen(!goalsOpen)}
+        />
+        {goalsOpen && (
+          <div className="space-y-3">
             {goals.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-12 h-12 rounded-full bg-default-100/50 flex items-center justify-center mb-3">
-                  <span className="text-default-300 text-2xl">+</span>
+                  <Plus className="text-default-300" size={20} />
                 </div>
                 <p className="text-sm text-default-400 mb-1">No goals yet</p>
-                <p className="text-[11px] text-default-300">Add your first goal below to get started</p>
+                <p className="text-[11px] text-default-300">Add your first goal below</p>
               </div>
             )}
 
@@ -193,7 +266,7 @@ export const GoalsView = () => {
             ))}
 
             {/* Add goal form */}
-            <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4 mt-4">
+            <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
               <h4 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-3">
                 Add Goal
               </h4>
@@ -271,82 +344,154 @@ export const GoalsView = () => {
               </div>
             </div>
           </div>
+        )}
 
-          {/* Right: Working Days settings */}
-          <div className="lg:w-72 xl:w-80 shrink-0 space-y-4">
-            <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
-              <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-3">
-                Working Days
-              </h3>
-              <p className="text-[10px] text-default-400 mb-3">
-                AI won&apos;t schedule tasks on non-working days. You can still add tasks manually.
-              </p>
-              <div className="flex gap-1.5">
-                {DAY_LABELS.map((label, i) => (
-                  <button
-                    key={i}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      workingDays.includes(i)
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-default-100/50 text-default-400 hover:bg-default-200/50"
-                    }`}
-                    title={DAY_FULL[i]}
-                    onClick={() => toggleWorkingDay(i)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Category legend */}
-            <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
-              <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-3">
-                Categories
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <div>
-                    <p className="text-[11px] font-semibold">Growth</p>
-                    <p className="text-[9px] text-default-400">Skills, projects, long-term development</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-warning" />
-                  <div>
-                    <p className="text-[11px] font-semibold">Habit</p>
-                    <p className="text-[9px] text-default-400">Recurring activities with frequency targets</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-secondary" />
-                  <div>
-                    <p className="text-[11px] font-semibold">Milestone</p>
-                    <p className="text-[9px] text-default-400">One-time achievements with target dates</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Multiplier explanation */}
-            <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
-              <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
-                How Priority Works
-              </h3>
-              <p className="text-[10px] text-default-400 leading-relaxed">
-                Higher priority goals get proportionally more tasks generated by the AI.
-                A goal at 5/5 will receive roughly 5x the focus of a goal at 1/5.
-                Frequency targets (e.g. &quot;5/day&quot;) tell the AI to create that many
-                daily check-ins for habit-type goals.
-              </p>
+        {/* ── Section: Working Days ── */}
+        <SectionHeader
+          icon={<CalendarDays size={14} />}
+          isOpen={workingDaysOpen}
+          subtitle={`${workingDays.length} days active`}
+          title="Working Days"
+          onToggle={() => setWorkingDaysOpen(!workingDaysOpen)}
+        />
+        {workingDaysOpen && (
+          <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
+            <p className="text-[10px] text-default-400 mb-3">
+              AI won&apos;t schedule tasks on non-working days. You can still add tasks manually.
+            </p>
+            <div className="flex gap-1.5">
+              {DAY_LABELS.map((label, i) => (
+                <button
+                  key={i}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    workingDays.includes(i)
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-default-100/50 text-default-400 hover:bg-default-200/50"
+                  }`}
+                  title={DAY_FULL[i]}
+                  onClick={() => toggleWorkingDay(i)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* ── Section: Daily Schedule ── */}
+        <SectionHeader
+          icon={<Clock size={14} />}
+          isOpen={scheduleOpen}
+          subtitle={dailySchedule ? "Configured" : "Not set"}
+          title="Daily Schedule"
+          onToggle={() => setScheduleOpen(!scheduleOpen)}
+        />
+        {scheduleOpen && (
+          <div className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4">
+            <p className="text-[10px] text-default-400 mb-3">
+              Describe your typical day in natural language. The AI will use this to schedule tasks at appropriate times.
+            </p>
+            <textarea
+              className="w-full rounded-lg bg-default-100/50 border border-default-200/30 p-3 text-sm text-foreground placeholder:text-default-400 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[100px]"
+              placeholder="e.g. I wake up at 7am, get ready until 8am. Work from 9am-5pm with lunch at 12:30pm. Gym at 6pm for an hour. Free time from 7:30pm. Bed by 11pm."
+              value={dailySchedule}
+              onBlur={saveDailySchedule}
+              onChange={(e) => setDailySchedule(e.target.value)}
+            />
+          </div>
+        )}
+
+        {/* ── Section: Dynamic Sources ── */}
+        <SectionHeader
+          icon={<Globe size={14} />}
+          isOpen={sourcesOpen}
+          subtitle={`${dynamicSources.length} source${dynamicSources.length !== 1 ? "s" : ""}`}
+          title="Dynamic Sources"
+          onToggle={() => setSourcesOpen(!sourcesOpen)}
+        />
+        {sourcesOpen && (
+          <div className="space-y-3">
+            <p className="text-[10px] text-default-400 px-1">
+              Attach URLs that contain scheduling data (e.g. prayer timetables, class schedules).
+              The AI will fetch and use this data when generating your daily plan.
+            </p>
+
+            {dynamicSources.map((source, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-default-200/20 bg-default-50/30 p-4"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 text-[11px] text-default-400 font-semibold uppercase">
+                    <Globe size={12} />
+                    Source {i + 1}
+                  </div>
+                  <button
+                    className="text-default-300 hover:text-danger cursor-pointer transition-colors"
+                    onClick={() => removeSource(i)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <Input
+                  classNames={{ inputWrapper: "rounded-lg bg-default-100/50 mb-2" }}
+                  placeholder="https://example.com/schedule.pdf"
+                  size="sm"
+                  value={source.url}
+                  onBlur={() => saveSource(i)}
+                  onValueChange={(val) => updateSource(i, { url: val })}
+                />
+                <textarea
+                  className="w-full rounded-lg bg-default-100/50 border border-default-200/30 p-2.5 text-xs text-foreground placeholder:text-default-400 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[60px]"
+                  placeholder="How should the AI use this? e.g. Prayer times - takes 5 min to get there, 10 min for prayer, 5 min back = 30 min total per prayer"
+                  value={source.description}
+                  onBlur={() => saveSource(i)}
+                  onChange={(e) => updateSource(i, { description: e.target.value })}
+                />
+              </div>
+            ))}
+
+            <button
+              className="flex items-center gap-2 text-[11px] text-default-400 hover:text-primary px-3 py-2 cursor-pointer transition-colors"
+              onClick={addSource}
+            >
+              <Plus size={14} />
+              Add source
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
+// ─── Section Header ─────────────────────────────────────────────────────────
+
+interface SectionHeaderProps {
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+const SectionHeader = ({ title, subtitle, icon, isOpen, onToggle }: SectionHeaderProps) => (
+  <button
+    className="w-full flex items-center gap-3 py-2 px-1 cursor-pointer group"
+    onClick={onToggle}
+  >
+    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+      {icon}
+    </div>
+    <div className="flex-1 text-left">
+      <p className="text-sm font-bold leading-none">{title}</p>
+      <p className="text-[10px] text-default-400 mt-0.5">{subtitle}</p>
+    </div>
+    <div className="text-default-400 group-hover:text-default-600 transition-colors">
+      {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+    </div>
+  </button>
+);
 
 // ─── Goal Card Component ─────────────────────────────────────────────────────
 
@@ -393,10 +538,10 @@ const GoalCard = ({ goal, onUpdate, onDelete }: GoalCardProps) => {
           )}
         </div>
         <button
-          className="text-default-300 hover:text-danger text-xs shrink-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+          className="text-default-300 hover:text-danger shrink-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => onDelete(goal.id)}
         >
-          &times;
+          <Trash2 size={14} />
         </button>
       </div>
 

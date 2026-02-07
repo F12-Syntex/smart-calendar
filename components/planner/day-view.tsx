@@ -100,15 +100,17 @@ export const DayView = () => {
   const weekTotal = weekTasks.length;
   const weekProgress = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
-  // Distribute tasks across timeline starting at 8 AM, ~2hr blocks
-  const taskTimeSlots: Record<number, TaskData> = {};
-  tasks.forEach((task, i) => {
-    const hour = 8 + i * 2;
-    if (hour <= 22) taskTimeSlots[hour] = task;
-  });
-
   const TIMELINE_START = 6;
   const TIMELINE_END = 23;
+
+  // Place tasks on timeline: use startHour if available, fallback to index-based (8 AM + 2hr blocks)
+  const taskTimeSlots: Record<number, TaskData> = {};
+  let fallbackIndex = 0;
+  tasks.forEach((task) => {
+    const hour = task.startHour != null ? Math.floor(task.startHour) : 8 + fallbackIndex * 2;
+    if (task.startHour == null) fallbackIndex++;
+    if (hour >= TIMELINE_START && hour <= TIMELINE_END) taskTimeSlots[hour] = task;
+  });
 
   return (
     <div className="flex flex-col h-full">

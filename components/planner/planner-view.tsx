@@ -9,9 +9,9 @@ import { WeekView } from "@/components/planner/week-view";
 import { MonthView } from "@/components/planner/month-view";
 import { YearView } from "@/components/planner/year-view";
 import { TimetableView } from "@/components/planner/timetable-view";
-import { GoalsView } from "@/components/planner/goals-view";
+import { SettingsView } from "@/components/planner/settings-view";
 
-type ViewTab = "day" | "week" | "month" | "year" | "timetable" | "goals";
+type ViewTab = "day" | "week" | "month" | "year" | "timetable" | "settings";
 
 export const PlannerView = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>("day");
@@ -39,7 +39,7 @@ export const PlannerView = () => {
           <Tab key="timetable" title="Table" />
           <Tab key="month" title="Month" />
           <Tab key="year" title="Year" />
-          <Tab key="goals" title="Goals" />
+          <Tab key="settings" title="Settings" />
         </Tabs>
       </div>
 
@@ -50,7 +50,7 @@ export const PlannerView = () => {
           {activeTab === "timetable" && <TimetableView />}
           {activeTab === "month" && <MonthView />}
           {activeTab === "year" && <YearView />}
-          {activeTab === "goals" && <GoalsView />}
+          {activeTab === "settings" && <SettingsView />}
         </div>
       </div>
     </>

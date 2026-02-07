@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@heroui/button";
 
-import { ChevronLeftIcon } from "@/components/icons";
+import { ChevronLeft } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 const DAY_NAMES = [
@@ -61,7 +61,7 @@ export default function DayPage() {
           variant="light"
           onPress={() => router.push("/")}
         >
-          <ChevronLeftIcon size={18} />
+          <ChevronLeft size={18} />
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-2">

@@ -171,6 +171,8 @@ export function dailyTasksSystemPrompt(
   isWeekend: boolean,
   isWorkingDay: boolean,
   taskRange: { min: number; max: number },
+  dailySchedule: string | null,
+  externalContext: string | null,
 ): string {
   const dayType = !isWorkingDay
     ? "This is a REST DAY — only include light personal tasks or habit check-ins, no heavy work"
@@ -178,7 +180,17 @@ export function dailyTasksSystemPrompt(
       ? "It's the weekend — lighter load, focus on personal goals or catch-up"
       : "Weekday — full productivity mode";
 
-  return `You are a detailed daily task planner. Create a DETAILED task list for today.
+  let scheduleBlock = "";
+  if (dailySchedule) {
+    scheduleBlock = `\n\nThe user's typical daily schedule:\n"${dailySchedule}"\nUse this to determine availability windows and appropriate time slots for tasks.`;
+  }
+
+  let externalBlock = "";
+  if (externalContext) {
+    externalBlock = `\n\nExternal scheduling sources (use these to schedule fixed-time events):\n${externalContext}\nIntegrate these into the schedule — they are fixed commitments that other tasks must work around.`;
+  }
+
+  return `You are a detailed daily task planner and scheduler. Create a DETAILED, TIME-SCHEDULED task list for today.
 
 Rules:
 - Today is ${dayName}, the ${dayOfMonth}th
@@ -188,9 +200,15 @@ Rules:
 - Descriptions should explain exactly what to do, not just repeat the title
 - Overestimate slightly — plan for ~110% of realistic capacity
 - If previous day had incomplete tasks, redistribute them
-- Order tasks by priority (most important first)
-- Each task should be completable in 1-3 hours
+- Order tasks chronologically by their start time
 - For goals with frequency targets, include those as discrete tasks (e.g. "Practice piano - session 3 of 5")
 
-Respond in JSON: {"tasks": [{"title": "...", "description": "Detailed steps and what success looks like"}]}`;
+SCHEDULING:
+- Assign each task a specific start time (startHour as 24h float, e.g. 8.5 = 8:30 AM, 14.0 = 2:00 PM)
+- Assign each task a duration in minutes (durationMinutes, e.g. 30, 60, 90, 120)
+- Tasks should NOT overlap — leave small gaps between tasks
+- Consider the user's schedule and external sources for time constraints
+- Fixed-time events (from external sources) take priority over flexible tasks${scheduleBlock}${externalBlock}
+
+Respond in JSON: {"tasks": [{"title": "...", "description": "Detailed steps and what success looks like", "startHour": 8.0, "durationMinutes": 60}]}`;
 }

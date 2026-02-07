@@ -18,19 +18,23 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   const body = await request.json();
-  const { workingDays } = body;
 
-  if (!workingDays || typeof workingDays !== "string") {
+  const data: Record<string, unknown> = {};
+  if (typeof body.workingDays === "string") data.workingDays = body.workingDays;
+  if (body.dailySchedule !== undefined) data.dailySchedule = body.dailySchedule;
+  if (body.dynamicSources !== undefined) data.dynamicSources = body.dynamicSources;
+
+  if (Object.keys(data).length === 0) {
     return NextResponse.json(
-      { error: "workingDays (comma-separated string) is required" },
+      { error: "No valid fields to update" },
       { status: 400 },
     );
   }
 
   const settings = await prisma.settings.upsert({
     where: { id: "default" },
-    update: { workingDays },
-    create: { id: "default", workingDays },
+    update: data,
+    create: { id: "default", workingDays: "1,2,3,4,5", ...data },
   });
 
   return NextResponse.json(settings);

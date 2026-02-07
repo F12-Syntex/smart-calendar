@@ -32,23 +32,27 @@ model MonthlyPlan {
 }
 
 model Task {
-  id            String       @id @default(cuid())
-  title         String
-  description   String?
-  completed     Boolean      @default(false)
-  monthlyPlanId String?
-  monthlyPlan   MonthlyPlan? @relation(fields: [monthlyPlanId], references: [id], onDelete: SetNull)
-  scope         String
-  scopeYear     Int
-  scopeMonth    Int?
-  scopeWeek     Int?
-  scopeDay      Int?
-  sortOrder     Int          @default(0)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  completed       Boolean      @default(false)
+  monthlyPlanId   String?
+  monthlyPlan     MonthlyPlan? @relation(fields: [monthlyPlanId], references: [id], onDelete: SetNull)
+  scope           String
+  scopeYear       Int
+  scopeMonth      Int?
+  scopeWeek       Int?
+  scopeDay        Int?
+  sortOrder       Int          @default(0)
+  startHour       Float?
+  durationMinutes Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model Settings {
-  id          String @id @default("default")
-  workingDays String @default("1,2,3,4,5")
+  id             String  @id @default("default")
+  workingDays    String  @default("1,2,3,4,5")
+  dailySchedule  String?
+  dynamicSources String?
 }

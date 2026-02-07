@@ -42,6 +42,8 @@ export interface YearlyPlan {
 export interface TaskItem {
   title: string;
   description?: string;
+  startHour?: number;
+  durationMinutes?: number;
 }
 
 export interface CompletionContext {
@@ -250,6 +252,8 @@ export async function generateDailyTasks(
   previousDayCompletion: CompletionContext | null,
   goals: GoalInput[],
   workingDays: number[],
+  dailySchedule: string | null,
+  externalContext: string | null,
 ): Promise<TaskItem[]> {
   const weighted = toWeighted(goals);
   const avgMult = averageMultiplier(weighted);
@@ -287,6 +291,8 @@ Redistribute incomplete work into today. If rate was low, reduce load to be real
         isWeekend,
         isWorkingDay,
         taskRange,
+        dailySchedule,
+        externalContext,
       ),
     },
     {
@@ -297,7 +303,7 @@ Goals:\n${goalContext}
 
 Weekly tasks:\n${taskList}${adjustmentNote}
 
-Generate today's detailed task list.`,
+Generate today's detailed, time-scheduled task list.`,
     },
   ];
 
