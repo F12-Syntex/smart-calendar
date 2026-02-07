@@ -12,6 +12,13 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+function getWeekOfMonth(): number {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstDayOfWeek = firstDay.getDay();
+  return Math.ceil((today.getDate() + firstDayOfWeek) / 7);
+}
+
 export const DayView = () => {
   const today = new Date();
   const day = today.getDate();
@@ -19,16 +26,19 @@ export const DayView = () => {
   const year = today.getFullYear();
   const dayOfWeek = today.getDay();
   const currentHour = today.getHours();
+  const weekOfMonth = getWeekOfMonth();
 
   const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [weekTasks, setWeekTasks] = useState<TaskData[]>([]);
 
   const fetchTasks = useCallback(async () => {
-    const res = await fetch(
-      `/api/tasks?scope=day&year=${year}&month=${month}&day=${day}`,
-    );
-    const data = await res.json();
-    setTasks(data);
-  }, [year, month, day]);
+    const [dayRes, weekRes] = await Promise.all([
+      fetch(`/api/tasks?scope=day&year=${year}&month=${month}&day=${day}`),
+      fetch(`/api/tasks?scope=week&year=${year}&month=${month}&week=${weekOfMonth}`),
+    ]);
+    setTasks(await dayRes.json());
+    setWeekTasks(await weekRes.json());
+  }, [year, month, day, weekOfMonth]);
 
   useEffect(() => {
     fetchTasks();
@@ -44,6 +54,10 @@ export const DayView = () => {
       body: JSON.stringify({ id, completed }),
     });
   };
+
+  const weekCompleted = weekTasks.filter((t) => t.completed).length;
+  const weekTotal = weekTasks.length;
+  const weekProgress = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -70,17 +84,49 @@ export const DayView = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Tasks section */}
-        {tasks.length > 0 && (
+        {/* Today's tasks */}
+        <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
+          <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
+            Today&apos;s Tasks
+          </h3>
+          <TaskList
+            emptyMessage="No tasks for today — sync your plan in the Year tab"
+            tasks={tasks}
+            onToggle={onToggle}
+          />
+        </div>
+
+        {/* Week glance */}
+        {weekTasks.length > 0 && (
           <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
-            <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
-              Today&apos;s Tasks
-            </h3>
-            <TaskList
-              emptyMessage="No tasks for today"
-              tasks={tasks}
-              onToggle={onToggle}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider">
+                This Week
+              </h3>
+              <span className="text-[10px] text-default-400 font-semibold">
+                {weekCompleted}/{weekTotal} done ({weekProgress}%)
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-default-200/30 rounded-full overflow-hidden mb-2">
+              <div
+                className="h-full bg-primary/60 rounded-full transition-all"
+                style={{ width: `${weekProgress}%` }}
+              />
+            </div>
+            <div className="space-y-0.5">
+              {weekTasks.map((t) => (
+                <p
+                  key={t.id}
+                  className={`text-[11px] ${
+                    t.completed
+                      ? "text-default-300 line-through"
+                      : "text-default-500"
+                  }`}
+                >
+                  {t.completed ? "✓" : "○"} {t.title}
+                </p>
+              ))}
+            </div>
           </div>
         )}
 

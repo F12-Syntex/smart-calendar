@@ -32,3 +32,16 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(goal, { status: 201 });
 }
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  await prisma.goal.delete({ where: { id } });
+
+  return NextResponse.json({ success: true });
+}

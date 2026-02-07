@@ -8,10 +8,11 @@ import {
   generateDailyTasks,
   getCurrentWeekOfMonth,
   getTotalWeeksInMonth,
+  getRemainingDaysOfWeek,
+  getRemainingDaysCountInWeek,
 } from "@/lib/ai-planner";
 import type { GoalInput, CompletionContext } from "@/lib/ai-planner";
 
-// Generate the full cascade: year → month → week → day
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { scope } = body; // "full" | "week" | "day"
@@ -22,6 +23,8 @@ export async function POST(request: NextRequest) {
   const weekOfMonth = getCurrentWeekOfMonth();
   const dayOfMonth = today.getDate();
   const dayOfWeek = today.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const remainingDaysInMonth = daysInMonth - dayOfMonth + 1;
 
   const goals = await prisma.goal.findMany({
     where: { year },
@@ -43,12 +46,11 @@ export async function POST(request: NextRequest) {
 
   try {
     if (scope === "full") {
-      // ── Step 1: Generate yearly plan (monthly summaries) ──
-      const yearlyPlan = await generateYearlyPlan(goalInputs, year);
+      // ── Step 1: Yearly plan (remaining months only) ──
+      const yearlyPlan = await generateYearlyPlan(goalInputs, year, month);
 
-      // Save monthly plans
+      // Clear old monthly plans for remaining months and save new ones
       for (const monthSummary of yearlyPlan.months) {
-        // Delete existing plan for this month
         await prisma.monthlyPlan.deleteMany({
           where: {
             year,
@@ -57,7 +59,6 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Create new monthly plan for the first goal (linked)
         await prisma.monthlyPlan.create({
           data: {
             goalId: goals[0].id,
@@ -68,12 +69,11 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ── Step 2: Generate current month's tasks ──
+      // ── Step 2: Current month's tasks (remaining days only) ──
       const currentMonthFocus =
         yearlyPlan.months.find((m) => m.month === month)?.focus ||
         "Focus on your goals";
 
-      // Clear existing month tasks
       await prisma.task.deleteMany({
         where: { scope: "month", scopeYear: year, scopeMonth: month },
       });
@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
         currentMonthFocus,
         month,
         year,
+        remainingDaysInMonth,
       );
 
       for (let i = 0; i < monthTasks.length; i++) {
@@ -98,13 +99,13 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ── Step 3: Generate current week's tasks ──
-      await generateAndSaveWeekTasks(year, month, weekOfMonth);
+      // ── Step 3: Current week's tasks (remaining days only) ──
+      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek);
 
-      // ── Step 4: Generate today's tasks ──
+      // ── Step 4: Today's detailed tasks ──
       await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
     } else if (scope === "week") {
-      await generateAndSaveWeekTasks(year, month, weekOfMonth);
+      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek);
       await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
     } else if (scope === "day") {
       await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
@@ -124,12 +125,13 @@ async function generateAndSaveWeekTasks(
   year: number,
   month: number,
   weekOfMonth: number,
+  dayOfWeek: number,
 ) {
   const monthTasks = await prisma.task.findMany({
     where: { scope: "month", scopeYear: year, scopeMonth: month },
   });
 
-  // Get previous week's completion context
+  // Previous week completion context
   let prevWeekCompletion: CompletionContext | null = null;
   if (weekOfMonth > 1) {
     const prevWeekTasks = await prisma.task.findMany({
@@ -144,9 +146,7 @@ async function generateAndSaveWeekTasks(
       const completed = prevWeekTasks.filter((t) => t.completed);
       prevWeekCompletion = {
         completed: completed.map((t) => ({ title: t.title })),
-        incomplete: prevWeekTasks
-          .filter((t) => !t.completed)
-          .map((t) => ({ title: t.title })),
+        incomplete: prevWeekTasks.filter((t) => !t.completed).map((t) => ({ title: t.title })),
         completionRate: completed.length / prevWeekTasks.length,
       };
     }
@@ -158,10 +158,13 @@ async function generateAndSaveWeekTasks(
   });
 
   const totalWeeks = getTotalWeeksInMonth(year, month);
+  const remainingDays = getRemainingDaysOfWeek(dayOfWeek);
+
   const weekTasks = await generateWeeklyTasks(
     monthTasks.map((t) => ({ title: t.title, completed: t.completed })),
     weekOfMonth,
     totalWeeks,
+    remainingDays,
     prevWeekCompletion,
   );
 
@@ -191,7 +194,7 @@ async function generateAndSaveDayTasks(
     where: { scope: "week", scopeYear: year, scopeMonth: month, scopeWeek: weekOfMonth },
   });
 
-  // Get yesterday's completion context
+  // Yesterday's completion context
   let prevDayCompletion: CompletionContext | null = null;
   const yesterday = new Date(year, month, dayOfMonth - 1);
   const yesterdayTasks = await prisma.task.findMany({
@@ -207,9 +210,7 @@ async function generateAndSaveDayTasks(
     const completed = yesterdayTasks.filter((t) => t.completed);
     prevDayCompletion = {
       completed: completed.map((t) => ({ title: t.title })),
-      incomplete: yesterdayTasks
-        .filter((t) => !t.completed)
-        .map((t) => ({ title: t.title })),
+      incomplete: yesterdayTasks.filter((t) => !t.completed).map((t) => ({ title: t.title })),
       completionRate: completed.length / yesterdayTasks.length,
     };
   }
@@ -219,10 +220,13 @@ async function generateAndSaveDayTasks(
     where: { scope: "day", scopeYear: year, scopeMonth: month, scopeDay: dayOfMonth },
   });
 
+  const remainingDaysInWeek = getRemainingDaysCountInWeek(dayOfWeek);
+
   const dayTasks = await generateDailyTasks(
     weekTasks.map((t) => ({ title: t.title, completed: t.completed })),
     dayOfWeek,
     dayOfMonth,
+    remainingDaysInWeek,
     prevDayCompletion,
   );
 

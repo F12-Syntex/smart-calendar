@@ -16,6 +16,13 @@ interface MonthlyPlanData {
   year: number;
 }
 
+interface GoalData {
+  id: string;
+  title: string;
+  description: string;
+  monthlyPlans: MonthlyPlanData[];
+}
+
 export const MonthView = () => {
   const today = new Date();
   const month = today.getMonth();
@@ -26,6 +33,7 @@ export const MonthView = () => {
 
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [plan, setPlan] = useState<MonthlyPlanData | null>(null);
+  const [goals, setGoals] = useState<GoalData[]>([]);
 
   const fetchData = useCallback(async () => {
     const [tasksRes, goalsRes] = await Promise.all([
@@ -36,7 +44,7 @@ export const MonthView = () => {
     setTasks(tasksData);
 
     const goalsData = await goalsRes.json();
-    // Find the monthly plan for current month
+    setGoals(goalsData);
     for (const goal of goalsData) {
       const mp = goal.monthlyPlans?.find(
         (p: MonthlyPlanData) => p.month === month && p.year === year,
@@ -62,6 +70,13 @@ export const MonthView = () => {
       body: JSON.stringify({ id, completed }),
     });
   };
+
+  // Year-level summary
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31);
+  const totalYearDays = (yearEnd.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
+  const dayOfYear = (today.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
+  const yearProgress = Math.round((dayOfYear / totalYearDays) * 100);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -90,7 +105,7 @@ export const MonthView = () => {
         </div>
       </div>
 
-      {/* Monthly focus/plan */}
+      {/* Monthly focus */}
       {plan && (
         <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
           <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
@@ -100,17 +115,45 @@ export const MonthView = () => {
         </div>
       )}
 
-      {/* Tasks */}
-      <div className="flex-1 px-4 sm:px-6 py-4">
+      {/* Monthly tasks */}
+      <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
         <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
           Monthly Tasks
         </h3>
         <TaskList
-          emptyMessage="No tasks for this month"
+          emptyMessage="No tasks for this month — sync your plan in the Year tab"
           tasks={tasks}
           onToggle={onToggle}
         />
       </div>
+
+      {/* Year glance */}
+      {goals.length > 0 && (
+        <div className="px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider">
+              {year} Goals
+            </h3>
+            <span className="text-[10px] text-default-400 font-semibold">
+              Year {yearProgress}% elapsed
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-default-200/30 rounded-full overflow-hidden mb-3">
+            <div
+              className="h-full bg-primary/60 rounded-full transition-all"
+              style={{ width: `${yearProgress}%` }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            {goals.map((g) => (
+              <div key={g.id} className="rounded-lg border border-default-200/20 p-2">
+                <p className="text-[11px] font-semibold">{g.title}</p>
+                <p className="text-[10px] text-default-400">{g.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

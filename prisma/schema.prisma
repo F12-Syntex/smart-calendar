@@ -44,13 +44,3 @@ model Task {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
-
-model ChatMessage {
-  id        String   @id @default(cuid())
-  role      String
-  content   String
-  sessionId String
-  createdAt DateTime @default(now())
-
-  @@index([sessionId])
-}

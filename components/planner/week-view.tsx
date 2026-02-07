@@ -16,7 +16,7 @@ function getCurrentWeekDays(): Date[] {
   const today = new Date();
   const dayOfWeek = today.getDay();
   const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - dayOfWeek); // Sunday
+  startOfWeek.setDate(today.getDate() - dayOfWeek);
 
   const days: Date[] = [];
   for (let i = 0; i < 7; i++) {
@@ -43,13 +43,15 @@ export const WeekView = () => {
   const month = today.getMonth();
 
   const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [monthTasks, setMonthTasks] = useState<TaskData[]>([]);
 
   const fetchTasks = useCallback(async () => {
-    const res = await fetch(
-      `/api/tasks?scope=week&year=${year}&month=${month}&week=${weekOfMonth}`,
-    );
-    const data = await res.json();
-    setTasks(data);
+    const [weekRes, monthRes] = await Promise.all([
+      fetch(`/api/tasks?scope=week&year=${year}&month=${month}&week=${weekOfMonth}`),
+      fetch(`/api/tasks?scope=month&year=${year}&month=${month}`),
+    ]);
+    setTasks(await weekRes.json());
+    setMonthTasks(await monthRes.json());
   }, [year, month, weekOfMonth]);
 
   useEffect(() => {
@@ -66,6 +68,10 @@ export const WeekView = () => {
       body: JSON.stringify({ id, completed }),
     });
   };
+
+  const monthCompleted = monthTasks.filter((t) => t.completed).length;
+  const monthTotal = monthTasks.length;
+  const monthProgress = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -86,6 +92,7 @@ export const WeekView = () => {
           {weekDays.map((day, i) => {
             const dayStr = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
             const isToday = dayStr === todayStr;
+            const isPast = day < today && !isToday;
 
             return (
               <div
@@ -93,7 +100,9 @@ export const WeekView = () => {
                 className={`flex flex-col items-center py-2 rounded-xl transition-colors ${
                   isToday
                     ? "bg-primary text-primary-foreground"
-                    : "text-foreground"
+                    : isPast
+                      ? "text-default-300"
+                      : "text-foreground"
                 }`}
               >
                 <span className="text-[10px] font-medium uppercase">
@@ -106,17 +115,51 @@ export const WeekView = () => {
         </div>
       </div>
 
-      {/* Tasks */}
-      <div className="flex-1 px-4 sm:px-6 py-4">
+      {/* Week tasks */}
+      <div className="px-4 sm:px-6 py-4 border-b border-default-200/30">
         <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider mb-2">
           This Week&apos;s Tasks
         </h3>
         <TaskList
-          emptyMessage="No tasks for this week"
+          emptyMessage="No tasks for this week — sync your plan in the Year tab"
           tasks={tasks}
           onToggle={onToggle}
         />
       </div>
+
+      {/* Month glance */}
+      {monthTasks.length > 0 && (
+        <div className="px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold text-default-500 uppercase tracking-wider">
+              This Month
+            </h3>
+            <span className="text-[10px] text-default-400 font-semibold">
+              {monthCompleted}/{monthTotal} done ({monthProgress}%)
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-default-200/30 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-primary/60 rounded-full transition-all"
+              style={{ width: `${monthProgress}%` }}
+            />
+          </div>
+          <div className="space-y-0.5">
+            {monthTasks.map((t) => (
+              <p
+                key={t.id}
+                className={`text-[11px] ${
+                  t.completed
+                    ? "text-default-300 line-through"
+                    : "text-default-500"
+                }`}
+              >
+                {t.completed ? "✓" : "○"} {t.title}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
+import { Spinner } from "@heroui/spinner";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -30,6 +33,10 @@ export const YearView = () => {
   const remainingDays = Math.round(totalDays - dayOfYear);
 
   const [goals, setGoals] = useState<GoalData[]>([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
   const fetchGoals = useCallback(async () => {
     const res = await fetch("/api/goals");
@@ -41,6 +48,56 @@ export const YearView = () => {
     fetchGoals();
   }, [fetchGoals]);
 
+  const addGoal = async () => {
+    if (!newTitle.trim()) return;
+    await fetch("/api/goals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: newTitle.trim(),
+        description: newDesc.trim() || newTitle.trim(),
+        year,
+      }),
+    });
+    setNewTitle("");
+    setNewDesc("");
+    fetchGoals();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      addGoal();
+    }
+  };
+
+  const deleteGoal = async (id: string) => {
+    await fetch(`/api/goals?id=${id}`, { method: "DELETE" });
+    fetchGoals();
+  };
+
+  const syncPlan = async () => {
+    setSyncing(true);
+    setSyncError("");
+    try {
+      const res = await fetch("/api/plan/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "full" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setSyncError(data.error || "Sync failed");
+      } else {
+        fetchGoals();
+      }
+    } catch {
+      setSyncError("Network error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Build month summaries from goals
   const monthSummaries: Record<number, string> = {};
   for (const goal of goals) {
@@ -50,6 +107,8 @@ export const YearView = () => {
       }
     }
   }
+
+  const hasPlan = Object.keys(monthSummaries).length > 0;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -74,36 +133,104 @@ export const YearView = () => {
             />
           </div>
           <div className="flex justify-between mt-3 text-xs text-default-400">
-            <span>
-              Day {Math.round(dayOfYear)} of {Math.round(totalDays)}
-            </span>
+            <span>Day {Math.round(dayOfYear)} of {Math.round(totalDays)}</span>
             <span>{remainingDays} days remaining</span>
           </div>
         </div>
 
-        {/* Goals */}
-        {goals.length > 0 && (
-          <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-5">
-            <h3 className="text-sm font-bold mb-3">
-              {year} Goals
-            </h3>
-            <div className="space-y-3">
+        {/* Goals + Add form */}
+        <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold">{year} Goals</h3>
+            {goals.length > 0 && (
+              <Button
+                className="rounded-xl font-semibold text-xs"
+                color="primary"
+                isDisabled={syncing}
+                isLoading={syncing}
+                size="sm"
+                variant="flat"
+                onPress={syncPlan}
+              >
+                {syncing ? "Syncing..." : hasPlan ? "Re-sync Plan" : "Sync Plan"}
+              </Button>
+            )}
+          </div>
+
+          {syncError && (
+            <p className="text-xs text-danger mb-3">{syncError}</p>
+          )}
+          {syncing && (
+            <div className="flex items-center gap-2 mb-3 p-3 rounded-xl bg-primary/[0.04] border border-primary/20">
+              <Spinner color="primary" size="sm" />
+              <span className="text-xs text-default-500">
+                Generating year → month → week → day plan...
+              </span>
+            </div>
+          )}
+
+          {/* Existing goals */}
+          {goals.length > 0 && (
+            <div className="space-y-2 mb-4">
               {goals.map((goal) => (
                 <div
                   key={goal.id}
-                  className="rounded-xl border border-default-200/20 p-3"
+                  className="rounded-xl border border-default-200/20 p-3 flex items-start justify-between gap-2"
                 >
-                  <p className="text-sm font-semibold">{goal.title}</p>
-                  <p className="text-[11px] text-default-400 mt-0.5">
-                    {goal.description}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">{goal.title}</p>
+                    <p className="text-[11px] text-default-400 mt-0.5">
+                      {goal.description}
+                    </p>
+                  </div>
+                  <button
+                    className="text-default-300 hover:text-danger text-xs shrink-0 mt-1 cursor-pointer"
+                    onClick={() => deleteGoal(goal.id)}
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Monthly breakdown with AI summaries */}
+          {/* Add goal form */}
+          <div className="space-y-2">
+            <Input
+              classNames={{
+                inputWrapper: "rounded-xl bg-default-100/50",
+              }}
+              placeholder="What do you want to achieve?"
+              size="sm"
+              value={newTitle}
+              onKeyDown={handleKeyDown}
+              onValueChange={setNewTitle}
+            />
+            <div className="flex gap-2">
+              <Input
+                classNames={{
+                  inputWrapper: "rounded-xl bg-default-100/50",
+                }}
+                placeholder="Brief description (optional)"
+                size="sm"
+                value={newDesc}
+                onKeyDown={handleKeyDown}
+                onValueChange={setNewDesc}
+              />
+              <Button
+                className="rounded-xl font-semibold shrink-0"
+                color="primary"
+                isDisabled={!newTitle.trim()}
+                size="sm"
+                onPress={addGoal}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Monthly plan breakdown */}
         <div className="rounded-2xl border border-default-200/30 bg-default-50/50 p-5">
           <h3 className="text-sm font-bold mb-4">Monthly Plan</h3>
           <div className="space-y-2.5">
@@ -121,7 +248,11 @@ export const YearView = () => {
                   <div className="flex items-center gap-3">
                     <span
                       className={`text-[11px] font-semibold w-8 ${
-                        isCurrentMo ? "text-primary" : "text-default-400"
+                        isCurrentMo
+                          ? "text-primary"
+                          : isPast
+                            ? "text-default-300"
+                            : "text-default-400"
                       }`}
                     >
                       {name.slice(0, 3)}
@@ -143,7 +274,11 @@ export const YearView = () => {
                     </span>
                   </div>
                   {monthSummaries[i] && (
-                    <p className="text-[11px] text-default-400 ml-11 mt-0.5">
+                    <p
+                      className={`text-[11px] ml-11 mt-0.5 ${
+                        isPast ? "text-default-300 line-through" : "text-default-400"
+                      }`}
+                    >
                       {monthSummaries[i]}
                     </p>
                   )}

@@ -4,9 +4,12 @@
  * This file is intentionally isolated so it can be improved independently.
  * All prompt engineering, plan generation, and adjustment logic lives here.
  *
- * Flow: Yearly Goals → Monthly Plans → Weekly Tasks → Daily Tasks
- * Each level is a high-level summary, not a detailed breakdown.
- * Daily plans overestimate slightly and adjust based on previous completion.
+ * Flow: Yearly Goals → Monthly Plans (remaining months only) →
+ *       Weekly Tasks (remaining weeks) → Daily Tasks (remaining days) →
+ *       Detailed plan for today
+ *
+ * Key principle: never plan for the past. If it's Wednesday, the week plan
+ * covers Wed–Sun. If it's February, the year plan covers Feb–Dec.
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -42,6 +45,17 @@ interface ChatMessage {
   content: string;
 }
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const DAY_NAMES = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+];
+
 // ─── Core AI Call (server-side, calls OpenRouter directly) ───────────────────
 
 const DEFAULT_MODEL = "google/gemini-2.0-flash-001";
@@ -75,83 +89,49 @@ async function callAI(messages: ChatMessage[], jsonMode = true): Promise<string>
 }
 
 function parseJSON<T>(raw: string): T {
-  // Strip markdown code fences if present
   const cleaned = raw.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
   return JSON.parse(cleaned);
 }
 
-// ─── Goal-Setting Chat ──────────────────────────────────────────────────────
-
-const GOAL_SYSTEM_PROMPT = `You are an AI life planner helping the user set their yearly goals for the current year.
-
-Your job:
-1. Ask smart, focused questions to understand what the user wants to achieve this year
-2. Cover different life areas: career, health, learning, personal, financial, relationships
-3. Don't overwhelm — ask 1-2 questions at a time
-4. After gathering enough info (usually 3-4 exchanges), summarize the goals and ask for confirmation
-5. When the user confirms, respond with EXACTLY this JSON format and nothing else:
-
-{"done": true, "goals": [{"title": "Goal title", "description": "Brief description"}]}
-
-Until goals are confirmed, respond conversationally (not JSON). Be concise and encouraging.
-Keep responses under 150 words.`;
-
-export function getGoalSystemPrompt(year: number): ChatMessage {
-  return {
-    role: "system",
-    content: GOAL_SYSTEM_PROMPT.replace("the current year", String(year)),
-  };
-}
-
-export async function chatForGoals(
-  messages: ChatMessage[],
-): Promise<string> {
-  return callAI(messages, false);
-}
-
-export function parseGoalCompletion(
-  response: string,
-): { done: true; goals: { title: string; description: string }[] } | null {
-  try {
-    // Check if the response contains the done:true JSON
-    const jsonMatch = response.match(/\{[\s\S]*"done"\s*:\s*true[\s\S]*\}/);
-    if (!jsonMatch) return null;
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (parsed.done && Array.isArray(parsed.goals)) return parsed;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// ─── Yearly Plan Generation ─────────────────────────────────────────────────
+// ─── Yearly Plan Generation (remaining months only) ─────────────────────────
 
 export async function generateYearlyPlan(
   goals: GoalInput[],
   year: number,
+  currentMonth: number,
 ): Promise<YearlyPlan> {
   const goalList = goals
     .map((g, i) => `${i + 1}. ${g.title}: ${g.description}`)
     .join("\n");
 
+  const remainingMonths = MONTH_NAMES.slice(currentMonth)
+    .map((name, i) => `${name} (month ${currentMonth + i})`)
+    .join(", ");
+
+  const pastMonths = currentMonth > 0
+    ? `Months already passed: ${MONTH_NAMES.slice(0, currentMonth).join(", ")}. Do NOT include these.`
+    : "This is the start of the year.";
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a strategic life planner. Create a HIGH-LEVEL yearly plan that distributes goal work across 12 months.
+      content: `You are a strategic life planner. Create a HIGH-LEVEL plan for the REMAINING months of the year only.
 
 Rules:
+- ONLY plan for these remaining months: ${remainingMonths}
+- ${pastMonths}
 - Each month should have a brief focus area (1-2 sentences max)
 - Think about natural progression and dependencies
-- Earlier months: foundation and habits. Later months: advanced milestones
-- Be realistic about time — don't cram everything into month 1
-- Consider seasonal factors (new year motivation, summer energy, year-end push)
+- The current month (${MONTH_NAMES[currentMonth]}) should start immediately actionable
+- Later months build on earlier progress
+- Be realistic about time
 
-Respond in JSON: {"months": [{"month": 0, "focus": "..."}, ..., {"month": 11, "focus": "..."}]}
-Month numbers are 0-indexed (0=January, 11=December).`,
+Respond in JSON: {"months": [{"month": <0-indexed>, "focus": "..."}]}
+Only include months from ${currentMonth} to 11.`,
     },
     {
       role: "user",
-      content: `Year: ${year}\n\nGoals:\n${goalList}\n\nCreate a high-level monthly focus plan.`,
+      content: `Year: ${year}, Current month: ${MONTH_NAMES[currentMonth]}\n\nGoals:\n${goalList}\n\nCreate a high-level monthly focus plan for the remaining months.`,
     },
   ];
 
@@ -159,19 +139,15 @@ Month numbers are 0-indexed (0=January, 11=December).`,
   return parseJSON<YearlyPlan>(raw);
 }
 
-// ─── Monthly Plan Generation ────────────────────────────────────────────────
+// ─── Monthly Task Generation ────────────────────────────────────────────────
 
 export async function generateMonthlyTasks(
   goals: GoalInput[],
   monthFocus: string,
   month: number,
   year: number,
+  remainingDaysInMonth: number,
 ): Promise<TaskItem[]> {
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
-
   const goalList = goals
     .map((g, i) => `${i + 1}. ${g.title}: ${g.description}`)
     .join("\n");
@@ -179,12 +155,13 @@ export async function generateMonthlyTasks(
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a task planner. Generate monthly tasks based on the focus area and goals.
+      content: `You are a task planner. Generate high-level monthly tasks based on the focus area and goals.
 
 Rules:
-- Generate 4-8 high-level tasks for the month
+- There are ${remainingDaysInMonth} days remaining in this month
+- Generate 4-8 high-level tasks scaled to the remaining time
+- If only a few days remain, keep it to 2-4 achievable tasks
 - Tasks should be concrete but not overly detailed
-- Each task should be achievable within a month
 - Mix tasks from different goals if the focus area covers multiple
 - Tasks should build on each other logically
 
@@ -192,12 +169,12 @@ Respond in JSON: {"tasks": [{"title": "...", "description": "..."}]}`,
     },
     {
       role: "user",
-      content: `Month: ${monthNames[month]} ${year}
+      content: `Month: ${MONTH_NAMES[month]} ${year} (${remainingDaysInMonth} days remaining)
 Focus: ${monthFocus}
 
 Goals:\n${goalList}
 
-Generate tasks for this month.`,
+Generate tasks for the remaining time this month.`,
     },
   ];
 
@@ -206,17 +183,21 @@ Generate tasks for this month.`,
   return parsed.tasks;
 }
 
-// ─── Weekly Plan Generation ─────────────────────────────────────────────────
+// ─── Weekly Task Generation (remaining days of week only) ───────────────────
 
 export async function generateWeeklyTasks(
   monthTasks: { title: string; completed: boolean }[],
   weekNumber: number,
   totalWeeksInMonth: number,
+  remainingDaysThisWeek: string[], // e.g. ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
   previousWeekCompletion: CompletionContext | null,
 ): Promise<TaskItem[]> {
   const taskList = monthTasks
     .map((t) => `- [${t.completed ? "x" : " "}] ${t.title}`)
     .join("\n");
+
+  const daysStr = remainingDaysThisWeek.join(", ");
+  const numDays = remainingDaysThisWeek.length;
 
   let adjustmentNote = "";
   if (previousWeekCompletion) {
@@ -224,32 +205,33 @@ export async function generateWeeklyTasks(
     if (incomplete.length > 0) {
       adjustmentNote = `\nLast week's completion rate: ${Math.round(completionRate * 100)}%.
 Incomplete from last week: ${incomplete.map((t) => t.title).join(", ")}.
-Carry over important incomplete tasks and adjust this week's load.`;
+Carry over important incomplete tasks and adjust the load.`;
     }
   }
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a weekly task planner. Break monthly tasks into a week's worth of work.
+      content: `You are a weekly task planner. Break monthly tasks into work for the remaining days of this week.
 
 Rules:
-- Generate 5-10 tasks for the week
-- Slightly overestimate — add ~20% more than seems doable (buffer for unexpected delays)
-- If previous week had incomplete tasks, prioritize carrying those forward
-- Distribute work considering this is week ${weekNumber} of ${totalWeeksInMonth}
-- Tasks should be specific enough to act on but not micro-managed
-- Earlier weeks: setup and momentum. Later weeks: completion and polish
+- This week only has these days remaining: ${daysStr} (${numDays} days)
+- Generate tasks proportional to the remaining days (roughly 1-2 tasks per day)
+- Slightly overestimate — add ~20% buffer for unexpected delays
+- If previous week had incomplete tasks, carry those forward first
+- This is week ${weekNumber} of ${totalWeeksInMonth} in the month
+- Tasks should be specific enough to act on
 
 Respond in JSON: {"tasks": [{"title": "...", "description": "..."}]}`,
     },
     {
       role: "user",
       content: `Week ${weekNumber} of ${totalWeeksInMonth}
+Remaining days: ${daysStr}
 
 Monthly tasks:\n${taskList}${adjustmentNote}
 
-Generate this week's tasks.`,
+Generate tasks for the remaining days of this week.`,
     },
   ];
 
@@ -258,16 +240,15 @@ Generate this week's tasks.`,
   return parsed.tasks;
 }
 
-// ─── Daily Plan Generation ──────────────────────────────────────────────────
+// ─── Daily Task Generation (detailed for today) ─────────────────────────────
 
 export async function generateDailyTasks(
   weekTasks: { title: string; completed: boolean }[],
-  dayOfWeek: number, // 0=Sunday
+  dayOfWeek: number,
   dayOfMonth: number,
+  remainingDaysInWeek: number,
   previousDayCompletion: CompletionContext | null,
 ): Promise<TaskItem[]> {
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
   const taskList = weekTasks
     .map((t) => `- [${t.completed ? "x" : " "}] ${t.title}`)
     .join("\n");
@@ -278,7 +259,7 @@ export async function generateDailyTasks(
     if (incomplete.length > 0) {
       adjustmentNote = `\nYesterday's completion rate: ${Math.round(completionRate * 100)}%.
 Incomplete from yesterday: ${incomplete.map((t) => t.title).join(", ")}.
-Redistribute incomplete work into today. If yesterday's rate was low, reduce today's load slightly to be realistic.`;
+Redistribute incomplete work into today. If rate was low, reduce load to be realistic.`;
     } else {
       adjustmentNote = `\nYesterday: 100% completion! Keep the momentum — can add a stretch task.`;
     }
@@ -289,26 +270,28 @@ Redistribute incomplete work into today. If yesterday's rate was low, reduce tod
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a daily task planner. Create today's task list from the weekly plan.
+      content: `You are a detailed daily task planner. Create a DETAILED task list for today.
 
 Rules:
-- Generate 3-6 tasks for today
+- Today is ${DAY_NAMES[dayOfWeek]}, the ${dayOfMonth}th
+- There are ${remainingDaysInWeek} days left in the week (including today)
+- Generate 3-6 DETAILED tasks — each with a clear, actionable description
+- Descriptions should explain exactly what to do, not just repeat the title
 - Overestimate slightly — plan for ~110% of realistic capacity
-- ${isWeekend ? "It's the weekend — lighter load, focus on personal goals or catch-up" : "It's a weekday — full productivity mode"}
+- ${isWeekend ? "It's the weekend — lighter load, focus on personal goals or catch-up" : "Weekday — full productivity mode"}
 - If previous day had incomplete tasks, redistribute them
-- If previous day was 100%, consider adding a bonus stretch task
 - Order tasks by priority (most important first)
 - Each task should be completable in 1-3 hours
 
-Respond in JSON: {"tasks": [{"title": "...", "description": "..."}]}`,
+Respond in JSON: {"tasks": [{"title": "...", "description": "Detailed steps and what success looks like"}]}`,
     },
     {
       role: "user",
-      content: `Day: ${dayNames[dayOfWeek]}, the ${dayOfMonth}th
+      content: `Day: ${DAY_NAMES[dayOfWeek]}, the ${dayOfMonth}th (${remainingDaysInWeek} days left this week)
 
 Weekly tasks:\n${taskList}${adjustmentNote}
 
-Generate today's tasks.`,
+Generate today's detailed task list.`,
     },
   ];
 
@@ -317,7 +300,7 @@ Generate today's tasks.`,
   return parsed.tasks;
 }
 
-// ─── Full Plan Generation Cascade ───────────────────────────────────────────
+// ─── Utility Functions ──────────────────────────────────────────────────────
 
 export function getCurrentWeekOfMonth(): number {
   const today = new Date();
@@ -331,4 +314,18 @@ export function getTotalWeeksInMonth(year: number, month: number): number {
   const lastDay = new Date(year, month + 1, 0);
   const firstDayOfWeek = firstDay.getDay();
   return Math.ceil((lastDay.getDate() + firstDayOfWeek) / 7);
+}
+
+export function getRemainingDaysOfWeek(dayOfWeek: number): string[] {
+  // Returns day names from today through end of week (Saturday)
+  // dayOfWeek: 0=Sunday, 6=Saturday
+  const days: string[] = [];
+  for (let i = dayOfWeek; i <= 6; i++) {
+    days.push(DAY_NAMES[i]);
+  }
+  return days;
+}
+
+export function getRemainingDaysCountInWeek(dayOfWeek: number): number {
+  return 7 - dayOfWeek; // including today
 }
