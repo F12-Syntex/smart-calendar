@@ -205,7 +205,7 @@ export const WeekView = () => {
                     {dailyTasks.slice(0, 4).map((t) => (
                       <div
                         key={t.id}
-                        className={`text-[9px] sm:text-[10px] px-1.5 py-1 rounded-md leading-tight truncate ${
+                        className={`text-[9px] sm:text-[10px] px-1.5 py-1 rounded-md leading-tight break-words ${
                           t.completed
                             ? "text-default-300 line-through bg-default-100/20"
                             : "text-foreground/80 bg-primary/[0.06]"

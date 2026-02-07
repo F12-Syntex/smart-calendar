@@ -205,13 +205,11 @@ export const YearView = () => {
                     </div>
                     {monthSummaries[i] && (
                       <p
-                        className={`text-[9px] leading-snug ${
+                        className={`text-[9px] leading-snug break-words ${
                           isPast ? "text-default-300" : "text-default-400"
                         }`}
                       >
-                        {monthSummaries[i].length > 60
-                          ? monthSummaries[i].slice(0, 60) + "..."
-                          : monthSummaries[i]}
+                        {monthSummaries[i]}
                       </p>
                     )}
                   </div>

@@ -213,8 +213,8 @@ export const GoalsView = () => {
                   value={newDesc}
                   onValueChange={setNewDesc}
                 />
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div className="flex-1 min-w-[120px]">
                     <label className="text-[10px] text-default-400 font-semibold uppercase block mb-1">
                       Priority ({newMultiplier}/5)
                     </label>
@@ -422,9 +422,9 @@ const GoalCard = ({ goal, onUpdate, onDelete }: GoalCardProps) => {
         </p>
       )}
 
-      <div className="flex items-center gap-4 ml-4">
+      <div className="flex flex-wrap items-center gap-4 ml-4">
         {/* Multiplier slider */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-[120px]">
           <div className="flex items-center justify-between mb-0.5">
             <label className="text-[9px] text-default-400 font-semibold uppercase">Priority</label>
             <span className="text-[9px] text-primary font-bold tabular-nums">{goal.multiplier}/5</span>

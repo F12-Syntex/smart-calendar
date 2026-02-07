@@ -182,7 +182,7 @@ export const DayView = () => {
                                 {task.title}
                               </p>
                               {task.description && !isExpanded && (
-                                <p className="text-[10px] text-default-400 mt-0.5 truncate">
+                                <p className="text-[10px] text-default-400 mt-0.5 line-clamp-2">
                                   {task.description}
                                 </p>
                               )}

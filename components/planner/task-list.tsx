@@ -141,7 +141,7 @@ export const TaskList = ({
                   {task.description && (
                     <p
                       className={`text-[11px] text-default-400 mt-0.5 transition-all ${
-                        expanded === task.id ? "whitespace-pre-wrap" : "truncate"
+                        expanded === task.id ? "whitespace-pre-wrap" : "line-clamp-2"
                       }`}
                     >
                       {task.description}

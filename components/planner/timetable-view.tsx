@@ -166,14 +166,14 @@ export const TimetableView = () => {
       {/* Week tasks banner */}
       {weekTasks.length > 0 && (
         <div className="px-4 sm:px-6 lg:px-8 py-2 border-b border-default-200/30 bg-default-50/30">
-          <div className="flex items-center gap-4 overflow-x-auto">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-bold text-default-400 uppercase tracking-wider shrink-0">
               Week
             </span>
             {weekTasks.map((t) => (
               <div
                 key={t.id}
-                className={`flex items-center gap-1.5 shrink-0 text-[10px] px-2 py-1 rounded-md ${
+                className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md ${
                   t.completed
                     ? "text-default-300 line-through bg-default-100/20"
                     : "text-foreground/70 bg-primary/[0.04] border border-primary/10"
@@ -185,7 +185,7 @@ export const TimetableView = () => {
                   size="sm"
                   onValueChange={(checked) => onToggle(t.id, checked)}
                 />
-                <span className="truncate max-w-[150px]">{t.title}</span>
+                <span className="break-words">{t.title}</span>
               </div>
             ))}
           </div>
@@ -301,7 +301,7 @@ export const TimetableView = () => {
                               size="sm"
                               onValueChange={(checked) => onToggle(task.id, checked)}
                             />
-                            <span className="truncate">{task.title}</span>
+                            <span className="break-words min-w-0">{task.title}</span>
                           </div>
                         </div>
                       )}
