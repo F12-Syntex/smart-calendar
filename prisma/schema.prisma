@@ -12,6 +12,9 @@ model Goal {
   title        String
   description  String
   year         Int
+  multiplier   Float         @default(1.0)
+  frequency    String?
+  category     String        @default("growth")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   monthlyPlans MonthlyPlan[]
@@ -43,4 +46,9 @@ model Task {
   sortOrder     Int          @default(0)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+}
+
+model Settings {
+  id          String @id @default("default")
+  workingDays String @default("1,2,3,4,5")
 }

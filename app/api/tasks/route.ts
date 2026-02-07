@@ -26,21 +26,71 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(tasks);
 }
 
-export async function PATCH(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { id, completed } = body;
+  const { title, description, scope, scopeYear, scopeMonth, scopeWeek, scopeDay } = body;
 
-  if (!id || typeof completed !== "boolean") {
+  if (!title || !scope || !scopeYear) {
     return NextResponse.json(
-      { error: "id and completed (boolean) are required" },
+      { error: "title, scope, and scopeYear are required" },
       { status: 400 },
     );
   }
 
+  // Get max sort order for this scope
+  const existing = await prisma.task.findMany({
+    where: { scope, scopeYear, scopeMonth, scopeWeek, scopeDay },
+    orderBy: { sortOrder: "desc" },
+    take: 1,
+  });
+  const nextOrder = existing.length > 0 ? existing[0].sortOrder + 1 : 0;
+
+  const task = await prisma.task.create({
+    data: {
+      title,
+      description: description || null,
+      scope,
+      scopeYear,
+      scopeMonth: scopeMonth ?? null,
+      scopeWeek: scopeWeek ?? null,
+      scopeDay: scopeDay ?? null,
+      sortOrder: nextOrder,
+    },
+  });
+
+  return NextResponse.json(task, { status: 201 });
+}
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json();
+  const { id, ...updates } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (typeof updates.completed === "boolean") data.completed = updates.completed;
+  if (typeof updates.title === "string") data.title = updates.title;
+  if (updates.description !== undefined) data.description = updates.description;
+
   const task = await prisma.task.update({
     where: { id },
-    data: { completed },
+    data,
   });
 
   return NextResponse.json(task);
+}
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  await prisma.task.delete({ where: { id } });
+
+  return NextResponse.json({ success: true });
 }

@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { title, description, year } = body;
+  const { title, description, year, multiplier, frequency, category } = body;
 
   if (!title || !description || !year) {
     return NextResponse.json(
@@ -27,10 +27,41 @@ export async function POST(request: NextRequest) {
   }
 
   const goal = await prisma.goal.create({
-    data: { title, description, year },
+    data: {
+      title,
+      description,
+      year,
+      multiplier: multiplier ?? 1.0,
+      frequency: frequency || null,
+      category: category || "growth",
+    },
   });
 
   return NextResponse.json(goal, { status: 201 });
+}
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json();
+  const { id, ...updates } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (updates.title !== undefined) data.title = updates.title;
+  if (updates.description !== undefined) data.description = updates.description;
+  if (updates.multiplier !== undefined) data.multiplier = updates.multiplier;
+  if (updates.frequency !== undefined) data.frequency = updates.frequency || null;
+  if (updates.category !== undefined) data.category = updates.category;
+
+  const goal = await prisma.goal.update({
+    where: { id },
+    data,
+    include: { monthlyPlans: { orderBy: { month: "asc" } } },
+  });
+
+  return NextResponse.json(goal);
 }
 
 export async function DELETE(request: NextRequest) {

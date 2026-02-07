@@ -1,16 +1,23 @@
 /**
- * AI Planner Algorithm — Dedicated file for all AI planning logic.
+ * AI Planner — Core AI calling logic and generation orchestration.
  *
- * This file is intentionally isolated so it can be improved independently.
- * All prompt engineering, plan generation, and adjustment logic lives here.
- *
- * Flow: Yearly Goals → Monthly Plans (remaining months only) →
- *       Weekly Tasks (remaining weeks) → Daily Tasks (remaining days) →
- *       Detailed plan for today
- *
- * Key principle: never plan for the past. If it's Wednesday, the week plan
- * covers Wed–Sun. If it's February, the year plan covers Feb–Dec.
+ * Prompt templates and formulas live in ./ai-algorithms.ts so you can tweak
+ * them independently. This file handles the OpenRouter API calls, JSON parsing,
+ * and the generate* functions that compose everything together.
  */
+
+import {
+  type GoalWithWeight,
+  formatGoalsForPrompt,
+  averageMultiplier,
+  monthlyTaskCount,
+  weeklyTaskCount,
+  dailyTaskCount,
+  yearlyPlanSystemPrompt,
+  monthlyTasksSystemPrompt,
+  weeklyTasksSystemPrompt,
+  dailyTasksSystemPrompt,
+} from "./ai-algorithms";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,11 +25,14 @@ export interface GoalInput {
   id: string;
   title: string;
   description: string;
+  multiplier: number;
+  frequency: string | null;
+  category: string;
 }
 
 export interface MonthSummary {
-  month: number; // 0-11
-  focus: string; // high-level focus for this month
+  month: number;
+  focus: string;
 }
 
 export interface YearlyPlan {
@@ -56,7 +66,7 @@ const DAY_NAMES = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
 
-// ─── Core AI Call (server-side, calls OpenRouter directly) ───────────────────
+// ─── Core AI Call ────────────────────────────────────────────────────────────
 
 const DEFAULT_MODEL = "google/gemini-2.0-flash-001";
 
@@ -93,41 +103,40 @@ function parseJSON<T>(raw: string): T {
   return JSON.parse(cleaned);
 }
 
-// ─── Yearly Plan Generation (remaining months only) ─────────────────────────
+// ─── Helpers to convert GoalInput → GoalWithWeight ──────────────────────────
+
+function toWeighted(goals: GoalInput[]): GoalWithWeight[] {
+  return goals.map((g) => ({
+    title: g.title,
+    description: g.description,
+    multiplier: g.multiplier,
+    frequency: g.frequency,
+    category: g.category,
+  }));
+}
+
+// ─── Yearly Plan Generation ─────────────────────────────────────────────────
 
 export async function generateYearlyPlan(
   goals: GoalInput[],
   year: number,
   currentMonth: number,
 ): Promise<YearlyPlan> {
-  const goalList = goals
-    .map((g, i) => `${i + 1}. ${g.title}: ${g.description}`)
-    .join("\n");
+  const weighted = toWeighted(goals);
+  const goalList = formatGoalsForPrompt(weighted);
 
   const remainingMonths = MONTH_NAMES.slice(currentMonth)
     .map((name, i) => `${name} (month ${currentMonth + i})`)
     .join(", ");
 
-  const pastMonths = currentMonth > 0
+  const pastMonthsNote = currentMonth > 0
     ? `Months already passed: ${MONTH_NAMES.slice(0, currentMonth).join(", ")}. Do NOT include these.`
     : "This is the start of the year.";
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a strategic life planner. Create a HIGH-LEVEL plan for the REMAINING months of the year only.
-
-Rules:
-- ONLY plan for these remaining months: ${remainingMonths}
-- ${pastMonths}
-- Each month should have a brief focus area (1-2 sentences max)
-- Think about natural progression and dependencies
-- The current month (${MONTH_NAMES[currentMonth]}) should start immediately actionable
-- Later months build on earlier progress
-- Be realistic about time
-
-Respond in JSON: {"months": [{"month": <0-indexed>, "focus": "..."}]}
-Only include months from ${currentMonth} to 11.`,
+      content: yearlyPlanSystemPrompt(remainingMonths, pastMonthsNote, MONTH_NAMES[currentMonth], currentMonth),
     },
     {
       role: "user",
@@ -148,24 +157,15 @@ export async function generateMonthlyTasks(
   year: number,
   remainingDaysInMonth: number,
 ): Promise<TaskItem[]> {
-  const goalList = goals
-    .map((g, i) => `${i + 1}. ${g.title}: ${g.description}`)
-    .join("\n");
+  const weighted = toWeighted(goals);
+  const goalList = formatGoalsForPrompt(weighted);
+  const avgMult = averageMultiplier(weighted);
+  const taskRange = monthlyTaskCount(remainingDaysInMonth, avgMult);
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a task planner. Generate high-level monthly tasks based on the focus area and goals.
-
-Rules:
-- There are ${remainingDaysInMonth} days remaining in this month
-- Generate 4-8 high-level tasks scaled to the remaining time
-- If only a few days remain, keep it to 2-4 achievable tasks
-- Tasks should be concrete but not overly detailed
-- Mix tasks from different goals if the focus area covers multiple
-- Tasks should build on each other logically
-
-Respond in JSON: {"tasks": [{"title": "...", "description": "..."}]}`,
+      content: monthlyTasksSystemPrompt(remainingDaysInMonth, taskRange),
     },
     {
       role: "user",
@@ -183,21 +183,27 @@ Generate tasks for the remaining time this month.`,
   return parsed.tasks;
 }
 
-// ─── Weekly Task Generation (remaining days of week only) ───────────────────
+// ─── Weekly Task Generation ─────────────────────────────────────────────────
 
 export async function generateWeeklyTasks(
   monthTasks: { title: string; completed: boolean }[],
   weekNumber: number,
   totalWeeksInMonth: number,
-  remainingDaysThisWeek: string[], // e.g. ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+  remainingDaysThisWeek: string[],
   previousWeekCompletion: CompletionContext | null,
+  goals: GoalInput[],
+  workingDays: number[],
 ): Promise<TaskItem[]> {
+  const weighted = toWeighted(goals);
+  const avgMult = averageMultiplier(weighted);
+
   const taskList = monthTasks
     .map((t) => `- [${t.completed ? "x" : " "}] ${t.title}`)
     .join("\n");
 
   const daysStr = remainingDaysThisWeek.join(", ");
   const numDays = remainingDaysThisWeek.length;
+  const taskRange = weeklyTaskCount(numDays, avgMult);
 
   let adjustmentNote = "";
   if (previousWeekCompletion) {
@@ -209,25 +215,19 @@ Carry over important incomplete tasks and adjust the load.`;
     }
   }
 
+  const goalContext = formatGoalsForPrompt(weighted);
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a weekly task planner. Break monthly tasks into work for the remaining days of this week.
-
-Rules:
-- This week only has these days remaining: ${daysStr} (${numDays} days)
-- Generate tasks proportional to the remaining days (roughly 1-2 tasks per day)
-- Slightly overestimate — add ~20% buffer for unexpected delays
-- If previous week had incomplete tasks, carry those forward first
-- This is week ${weekNumber} of ${totalWeeksInMonth} in the month
-- Tasks should be specific enough to act on
-
-Respond in JSON: {"tasks": [{"title": "...", "description": "..."}]}`,
+      content: weeklyTasksSystemPrompt(daysStr, numDays, weekNumber, totalWeeksInMonth, taskRange, workingDays),
     },
     {
       role: "user",
       content: `Week ${weekNumber} of ${totalWeeksInMonth}
 Remaining days: ${daysStr}
+
+Goals:\n${goalContext}
 
 Monthly tasks:\n${taskList}${adjustmentNote}
 
@@ -240,7 +240,7 @@ Generate tasks for the remaining days of this week.`,
   return parsed.tasks;
 }
 
-// ─── Daily Task Generation (detailed for today) ─────────────────────────────
+// ─── Daily Task Generation ──────────────────────────────────────────────────
 
 export async function generateDailyTasks(
   weekTasks: { title: string; completed: boolean }[],
@@ -248,7 +248,17 @@ export async function generateDailyTasks(
   dayOfMonth: number,
   remainingDaysInWeek: number,
   previousDayCompletion: CompletionContext | null,
+  goals: GoalInput[],
+  workingDays: number[],
 ): Promise<TaskItem[]> {
+  const weighted = toWeighted(goals);
+  const avgMult = averageMultiplier(weighted);
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const isWorkingDay = workingDays.includes(dayOfWeek);
+  const taskRange = isWorkingDay
+    ? dailyTaskCount(isWeekend, avgMult)
+    : { min: 1, max: 3 }; // rest days get minimal tasks
+
   const taskList = weekTasks
     .map((t) => `- [${t.completed ? "x" : " "}] ${t.title}`)
     .join("\n");
@@ -265,29 +275,25 @@ Redistribute incomplete work into today. If rate was low, reduce load to be real
     }
   }
 
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const goalContext = formatGoalsForPrompt(weighted);
 
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `You are a detailed daily task planner. Create a DETAILED task list for today.
-
-Rules:
-- Today is ${DAY_NAMES[dayOfWeek]}, the ${dayOfMonth}th
-- There are ${remainingDaysInWeek} days left in the week (including today)
-- Generate 3-6 DETAILED tasks — each with a clear, actionable description
-- Descriptions should explain exactly what to do, not just repeat the title
-- Overestimate slightly — plan for ~110% of realistic capacity
-- ${isWeekend ? "It's the weekend — lighter load, focus on personal goals or catch-up" : "Weekday — full productivity mode"}
-- If previous day had incomplete tasks, redistribute them
-- Order tasks by priority (most important first)
-- Each task should be completable in 1-3 hours
-
-Respond in JSON: {"tasks": [{"title": "...", "description": "Detailed steps and what success looks like"}]}`,
+      content: dailyTasksSystemPrompt(
+        DAY_NAMES[dayOfWeek],
+        dayOfMonth,
+        remainingDaysInWeek,
+        isWeekend,
+        isWorkingDay,
+        taskRange,
+      ),
     },
     {
       role: "user",
       content: `Day: ${DAY_NAMES[dayOfWeek]}, the ${dayOfMonth}th (${remainingDaysInWeek} days left this week)
+
+Goals:\n${goalContext}
 
 Weekly tasks:\n${taskList}${adjustmentNote}
 
@@ -317,8 +323,6 @@ export function getTotalWeeksInMonth(year: number, month: number): number {
 }
 
 export function getRemainingDaysOfWeek(dayOfWeek: number): string[] {
-  // Returns day names from today through end of week (Saturday)
-  // dayOfWeek: 0=Sunday, 6=Saturday
   const days: string[] = [];
   for (let i = dayOfWeek; i <= 6; i++) {
     days.push(DAY_NAMES[i]);
@@ -327,5 +331,5 @@ export function getRemainingDaysOfWeek(dayOfWeek: number): string[] {
 }
 
 export function getRemainingDaysCountInWeek(dayOfWeek: number): number {
-  return 7 - dayOfWeek; // including today
+  return 7 - dayOfWeek;
 }

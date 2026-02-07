@@ -8,23 +8,27 @@ import { DayView } from "@/components/planner/day-view";
 import { WeekView } from "@/components/planner/week-view";
 import { MonthView } from "@/components/planner/month-view";
 import { YearView } from "@/components/planner/year-view";
+import { TimetableView } from "@/components/planner/timetable-view";
+import { GoalsView } from "@/components/planner/goals-view";
 
-type ViewTab = "day" | "week" | "month" | "year";
+type ViewTab = "day" | "week" | "month" | "year" | "timetable" | "goals";
 
 export const PlannerView = () => {
   const [activeTab, setActiveTab] = useState<ViewTab>("day");
 
   return (
     <>
-      <PlannerHeader activeTab={activeTab} />
+      <PlannerHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <div className="px-4 sm:px-6 pt-3 shrink-0">
+      {/* Mobile tabs */}
+      <div className="md:hidden px-4 pt-2 pb-1 shrink-0">
         <Tabs
           classNames={{
-            tabList: "bg-default-100/50 rounded-2xl p-1 gap-0",
-            tab: "rounded-xl h-8 text-xs font-semibold",
-            cursor: "rounded-xl",
+            tabList: "bg-default-100/50 rounded-xl p-0.5 gap-0 w-full",
+            tab: "rounded-lg h-7 text-[11px] font-semibold",
+            cursor: "rounded-lg",
           }}
+          fullWidth
           selectedKey={activeTab}
           size="sm"
           variant="solid"
@@ -32,16 +36,22 @@ export const PlannerView = () => {
         >
           <Tab key="day" title="Day" />
           <Tab key="week" title="Week" />
+          <Tab key="timetable" title="Table" />
           <Tab key="month" title="Month" />
           <Tab key="year" title="Year" />
+          <Tab key="goals" title="Goals" />
         </Tabs>
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {activeTab === "day" && <DayView />}
-        {activeTab === "week" && <WeekView />}
-        {activeTab === "month" && <MonthView />}
-        {activeTab === "year" && <YearView />}
+        <div className="h-full max-w-7xl mx-auto">
+          {activeTab === "day" && <DayView />}
+          {activeTab === "week" && <WeekView />}
+          {activeTab === "timetable" && <TimetableView />}
+          {activeTab === "month" && <MonthView />}
+          {activeTab === "year" && <YearView />}
+          {activeTab === "goals" && <GoalsView />}
+        </div>
       </div>
     </>
   );

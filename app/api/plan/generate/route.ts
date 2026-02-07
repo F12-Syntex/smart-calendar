@@ -13,6 +13,16 @@ import {
 } from "@/lib/ai-planner";
 import type { GoalInput, CompletionContext } from "@/lib/ai-planner";
 
+async function getWorkingDays(): Promise<number[]> {
+  let settings = await prisma.settings.findUnique({ where: { id: "default" } });
+  if (!settings) {
+    settings = await prisma.settings.create({
+      data: { id: "default", workingDays: "1,2,3,4,5" },
+    });
+  }
+  return settings.workingDays.split(",").map(Number);
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { scope } = body; // "full" | "week" | "day"
@@ -42,14 +52,18 @@ export async function POST(request: NextRequest) {
     id: g.id,
     title: g.title,
     description: g.description,
+    multiplier: g.multiplier,
+    frequency: g.frequency,
+    category: g.category,
   }));
+
+  const workingDays = await getWorkingDays();
 
   try {
     if (scope === "full") {
       // ── Step 1: Yearly plan (remaining months only) ──
       const yearlyPlan = await generateYearlyPlan(goalInputs, year, month);
 
-      // Clear old monthly plans for remaining months and save new ones
       for (const monthSummary of yearlyPlan.months) {
         await prisma.monthlyPlan.deleteMany({
           where: {
@@ -69,7 +83,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ── Step 2: Current month's tasks (remaining days only) ──
+      // ── Step 2: Current month's tasks ──
       const currentMonthFocus =
         yearlyPlan.months.find((m) => m.month === month)?.focus ||
         "Focus on your goals";
@@ -99,16 +113,16 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ── Step 3: Current week's tasks (remaining days only) ──
-      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek);
+      // ── Step 3: Current week's tasks ──
+      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek, goalInputs, workingDays);
 
       // ── Step 4: Today's detailed tasks ──
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
     } else if (scope === "week") {
-      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek);
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
+      await generateAndSaveWeekTasks(year, month, weekOfMonth, dayOfWeek, goalInputs, workingDays);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
     } else if (scope === "day") {
-      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek);
+      await generateAndSaveDayTasks(year, month, weekOfMonth, dayOfMonth, dayOfWeek, goalInputs, workingDays);
     }
 
     return NextResponse.json({ success: true });
@@ -126,12 +140,13 @@ async function generateAndSaveWeekTasks(
   month: number,
   weekOfMonth: number,
   dayOfWeek: number,
+  goalInputs: GoalInput[],
+  workingDays: number[],
 ) {
   const monthTasks = await prisma.task.findMany({
     where: { scope: "month", scopeYear: year, scopeMonth: month },
   });
 
-  // Previous week completion context
   let prevWeekCompletion: CompletionContext | null = null;
   if (weekOfMonth > 1) {
     const prevWeekTasks = await prisma.task.findMany({
@@ -152,7 +167,6 @@ async function generateAndSaveWeekTasks(
     }
   }
 
-  // Clear existing week tasks
   await prisma.task.deleteMany({
     where: { scope: "week", scopeYear: year, scopeMonth: month, scopeWeek: weekOfMonth },
   });
@@ -166,6 +180,8 @@ async function generateAndSaveWeekTasks(
     totalWeeks,
     remainingDays,
     prevWeekCompletion,
+    goalInputs,
+    workingDays,
   );
 
   for (let i = 0; i < weekTasks.length; i++) {
@@ -189,12 +205,13 @@ async function generateAndSaveDayTasks(
   weekOfMonth: number,
   dayOfMonth: number,
   dayOfWeek: number,
+  goalInputs: GoalInput[],
+  workingDays: number[],
 ) {
   const weekTasks = await prisma.task.findMany({
     where: { scope: "week", scopeYear: year, scopeMonth: month, scopeWeek: weekOfMonth },
   });
 
-  // Yesterday's completion context
   let prevDayCompletion: CompletionContext | null = null;
   const yesterday = new Date(year, month, dayOfMonth - 1);
   const yesterdayTasks = await prisma.task.findMany({
@@ -215,7 +232,6 @@ async function generateAndSaveDayTasks(
     };
   }
 
-  // Clear existing day tasks
   await prisma.task.deleteMany({
     where: { scope: "day", scopeYear: year, scopeMonth: month, scopeDay: dayOfMonth },
   });
@@ -228,6 +244,8 @@ async function generateAndSaveDayTasks(
     dayOfMonth,
     remainingDaysInWeek,
     prevDayCompletion,
+    goalInputs,
+    workingDays,
   );
 
   for (let i = 0; i < dayTasks.length; i++) {
